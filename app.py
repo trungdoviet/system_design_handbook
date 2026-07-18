@@ -514,6 +514,11 @@ async def rate_quest(topic_id: str, quest_id: int, payload: RatePayload, db: Ses
     if payload.rating_val < 1 or payload.rating_val > 5:
         raise HTTPException(status_code=400, detail="Rating must be between 1 and 5 stars.")
 
+    # Prevent rating multiple times
+    existing = db.query(Rating).filter(Rating.quest_id == q.id, Rating.user_id == user.id).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="You have already rated this question.")
+
     # Record rating
     rating = Rating(
         quest_id=q.id,
