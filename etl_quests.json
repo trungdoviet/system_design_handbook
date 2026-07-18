@@ -1,0 +1,95 @@
+[
+  {
+    "id": 1,
+    "title": "Handling Late-Arriving Data in Streaming ETL",
+    "category": "Streaming Pipelines",
+    "scenario": "You have a streaming ETL pipeline (Apache Flink/Spark Streaming) processing user events. Events arrive late due to network latency. You need to calculate 5-minute event-time aggregation windows. How should you handle events that arrive after the window has closed?",
+    "options": [
+      {
+        "key": "A",
+        "text": "Discard late events immediately to avoid polluting calculations. Log them as errors."
+      },
+      {
+        "key": "B",
+        "text": "Use Watermarks with Allowed Lateness. Keep the window state in RocksDB for the allowed buffer time and emit updates when late events arrive."
+      },
+      {
+        "key": "C",
+        "text": "Switch to processing-time windows instead of event-time windows so late events are simply grouped by arrival time."
+      },
+      {
+        "key": "D",
+        "text": "Increase the window size to 2 hours so that all late events are naturally caught inside the same window."
+      }
+    ],
+    "correct_answer": "B",
+    "explanations": {
+      "A": "Discarding events leads to data loss and incorrect analytics, which is unacceptable for billing or critical business events.",
+      "B": "Correct. Watermarking defines how long the engine waits for late events. Combined with 'Allowed Lateness', Flink/Spark keeps window state open, updating the aggregates incrementally as late events arrive.",
+      "C": "Processing-time ignores when events actually happened, distorting hourly/daily analytics (e.g. events from midnight appear at 8 AM).",
+      "D": "Increasing window size ruins real-time responsiveness (5-min SLA becomes 2-hour SLA)."
+    }
+  },
+  {
+    "id": 2,
+    "title": "Avoiding Out-Of-Memory (OOM) in Large ETL Joins",
+    "category": "Batch Processing",
+    "scenario": "You are joining a huge transaction fact table (10 billion rows) with a small reseller dimension table (5,000 rows) in an Apache Spark ETL job. The job is failing with Executor OutOfMemory (OOM) errors. What optimization should you apply?",
+    "options": [
+      {
+        "key": "A",
+        "text": "Repartition both tables on the join key to redistribute the data across executors. O(n log n) shuffle."
+      },
+      {
+        "key": "B",
+        "text": "Increase the spark.executor.memory config setting to 128GB to handle the shuffle in-memory."
+      },
+      {
+        "key": "C",
+        "text": "Use a Broadcast Join (Map-Side Join). Broadcast the small reseller table to all executors, eliminating the need to shuffle the massive fact table."
+      },
+      {
+        "key": "D",
+        "text": "Convert the dimension table to a parquet format and cache it prior to joining."
+      }
+    ],
+    "correct_answer": "C",
+    "explanations": {
+      "A": "Shuffling 10 billion rows is extremely expensive and causes heavy disk spill, leading to performance issues and potential OOMs.",
+      "B": "Brute-force memory scaling is expensive and doesn't solve the underlying data skew or shuffle bottleneck.",
+      "C": "Correct. Since the dimension table is tiny (5,000 rows, a few KB), broadcasting it avoids the network shuffle of the 10-billion-row fact table entirely. Each worker performs a local join.",
+      "D": "Caching or file format changes do not prevent Spark from having to shuffle the fact table, which is the main source of the OOM."
+    }
+  },
+  {
+    "id": 3,
+    "title": "Designing a Idempotent ETL Data Load",
+    "category": "Data Warehousing",
+    "scenario": "Your daily ETL pipeline loads data into a Snowflake data warehouse. If the pipeline runs twice due to a scheduler retry, you get duplicate records. How should you design the ingestion layer to guarantee idempotency?",
+    "options": [
+      {
+        "key": "A",
+        "text": "Execute a DELETE query for the date range before running the INSERT query (Delete-Insert pattern)."
+      },
+      {
+        "key": "B",
+        "text": "Use a staging table, merge it into the target table using a MERGE (UPSERT) statement based on a unique transaction ID, and clear staging."
+      },
+      {
+        "key": "C",
+        "text": "Rely on Snowflake's automatic primary key unique constraints to block duplicate inserts."
+      },
+      {
+        "key": "D",
+        "text": "Both A and B are acceptable idempotent patterns, depending on the overwrite requirements."
+      }
+    ],
+    "correct_answer": "D",
+    "explanations": {
+      "A": "Delete-Insert is a classic batch idempotent pattern for partitions (e.g. daily overwrites).",
+      "B": "Merge/Upsert is the standard pattern for upserting records by a unique key, ensuring retries update existing rows instead of inserting duplicates.",
+      "C": "Snowflake does NOT enforce primary key uniqueness constraints during inserts; constraints are only metadata declarations.",
+      "D": "Correct. Both patterns (Delete-Insert for time-series partitions, MERGE for upserts) are standard industry patterns to guarantee idempotency in warehouse loading."
+    }
+  }
+]

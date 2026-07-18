@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tech Mastery Portal - Interactive Architecture Simulator</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Top Navigation Bar -->
+    <header class="app-header">
+        <div class="header-logo" id="header-logo-btn">
+            <span class="logo-icon">🚀</span>
+            <h1 class="logo-text">TechMastery<span>Portal</span></h1>
+        </div>
+        <div class="header-actions">
+            <button class="btn btn-secondary btn-icon-only" id="theme-toggle" title="Toggle Theme">
+                <i class="fas fa-moon"></i>
+            </button>
+            <button class="btn btn-primary" id="open-settings-btn">
+                <i class="fas fa-key"></i> <span>Gemini API Key</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="app-container">
+        <!-- SCREEN 1: LANDING PORTAL -->
+        <section id="landing-screen" class="screen active">
+            <div class="hero-section">
+                <h2 class="hero-title">Master Production-Grade Systems & Logic</h2>
+                <p class="hero-subtitle">Interactive multiple-choice quests, live system simulations, and AI-driven architect reports.</p>
+            </div>
+            
+            <div class="topics-grid" id="topics-grid">
+                <!-- Dynamic Topic Cards injected by JS -->
+            </div>
+        </section>
+
+        <!-- SCREEN 2: QUEST SIMULATOR WORKSPACE -->
+        <section id="simulator-screen" class="screen">
+            <div class="workspace-layout">
+                <!-- Left Sidebar: Quest Selector -->
+                <aside class="workspace-sidebar">
+                    <div class="sidebar-header">
+                        <button class="btn btn-secondary btn-sm btn-icon" id="back-to-home-btn">
+                            <i class="fas fa-arrow-left"></i> Back to Topics
+                        </button>
+                    </div>
+
+                    <!-- Category Score Overview widget -->
+                    <div class="progress-widget card">
+                        <h4 class="widget-title">Topic Progress</h4>
+                        <div class="progress-ring-container">
+                            <svg class="progress-ring" width="100" height="100">
+                                <circle class="progress-ring-bg" stroke="#1f1f2e" stroke-width="8" fill="transparent" r="40" cx="50" cy="50"/>
+                                <circle class="progress-ring-bar" id="overall-progress-bar" stroke="var(--primary-glow)" stroke-width="8" fill="transparent" r="40" cx="50" cy="50" stroke-dasharray="251.2" stroke-dashoffset="251.2"/>
+                            </svg>
+                            <div class="progress-ring-text">
+                                <span class="percentage" id="overall-pct">0%</span>
+                                <span class="completed-label" id="overall-count">0/60</span>
+                            </div>
+                        </div>
+                        <div class="architect-badge" id="architect-rank">
+                            <i class="fas fa-award"></i> <span id="rank-text">Novice Developer</span>
+                        </div>
+                        <button class="btn btn-secondary btn-xs btn-block" id="view-dashboard-btn">
+                            <i class="fas fa-chart-pie"></i> View Detailed Dashboard
+                        </button>
+                    </div>
+
+                    <!-- Quest Search & Filter -->
+                    <div class="filter-box">
+                        <i class="fas fa-filter filter-icon"></i>
+                        <select id="category-filter" class="form-select">
+                            <option value="all">All Categories</option>
+                            <!-- Dynamic Categories -->
+                        </select>
+                    </div>
+
+                    <!-- Scrollable Quest List -->
+                    <div class="quest-list-container">
+                        <ul class="quest-list" id="quest-list">
+                            <!-- Dynamic Quest Items -->
+                        </ul>
+                    </div>
+                </aside>
+
+                <!-- Right / Center Panel: Quest Simulator & Workspace -->
+                <section class="workspace-main" id="workspace-main-panel">
+                    <!-- SCREEN 2.1: DASHBOARD OVERVIEW -->
+                    <div id="dashboard-widget-panel" class="dashboard-panel">
+                        <div class="dashboard-header">
+                            <h3 class="panel-titleOutfit"><i class="fas fa-chart-line"></i> Category Diagnostics Dashboard</h3>
+                            <p class="panel-subtitle">Detailed scoring metrics across key computer engineering domains.</p>
+                        </div>
+                        
+                        <div class="category-cards-grid" id="category-cards-grid">
+                            <!-- Injected by JS -->
+                        </div>
+
+                        <div class="ai-feedback-section card">
+                            <div class="ai-header">
+                                <div class="ai-title">
+                                    <i class="fas fa-robot text-glow-primary"></i>
+                                    <h4>Antigravity Architect Review</h4>
+                                </div>
+                                <span class="ai-status-tag" id="ai-status">Waiting for key...</span>
+                            </div>
+                            <p class="ai-desc">Get an in-depth code-architect assessment of your technical strengths and weak areas. Requires a Gemini API Key.</p>
+                            <div class="ai-controls">
+                                <button class="btn btn-primary" id="trigger-ai-feedback-btn">
+                                    <i class="fas fa-sparkles"></i> Generate AI Diagnostic Report
+                                </button>
+                            </div>
+                            <div class="ai-feedback-output" id="ai-feedback-output" style="display: none;">
+                                <!-- Markdown content injected here -->
+                                <div class="feedback-spinner">
+                                    <i class="fas fa-circle-notch fa-spin"></i> Analyzing your metrics with Gemini...
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SCREEN 2.2: ACTIVE QUEST WORKSPACE -->
+                    <div id="active-quest-panel" class="quest-panel" style="display: none;">
+                        <div class="quest-header-bar">
+                            <div class="quest-metadata">
+                                <span class="quest-day" id="quest-day-num">DAY 01</span>
+                                <span class="quest-category-pill" id="quest-cat-pill">API Design</span>
+                            </div>
+                            <h3 class="quest-title" id="quest-title-text">Decoupling Mobile from Backend Services</h3>
+                        </div>
+
+                        <!-- Grid layout: Quest description & options on left, Simulation on right -->
+                        <div class="quest-grid">
+                            <div class="quest-details-column">
+                                <!-- Scenario Description -->
+                                <div class="scenario-card card">
+                                    <h4 class="card-subtitle"><i class="fas fa-align-left"></i> Scenario Context</h4>
+                                    <p class="scenario-text" id="quest-scenario-text">
+                                        Your mobile app talks to 3 backend services directly. A 4th one ships next sprint...
+                                    </p>
+                                </div>
+
+                                <!-- Options Container -->
+                                <div class="options-container">
+                                    <h4 class="card-subtitle"><i class="fas fa-tasks"></i> Architectural Options</h4>
+                                    <div class="options-list" id="options-list">
+                                        <!-- Injected by JS -->
+                                    </div>
+                                </div>
+
+                                <!-- Action Buttons -->
+                                <div class="quest-action-bar">
+                                    <button class="btn btn-primary btn-lg" id="submit-answer-btn" disabled>
+                                        Submit Architecture Selection
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="quest-simulation-column">
+                                <!-- Simulation Panel -->
+                                <div class="simulation-card card">
+                                    <div class="sim-header">
+                                        <h4 class="card-subtitle"><i class="fas fa-project-diagram"></i> Architecture Flow Simulator</h4>
+                                        <div class="sim-status" id="sim-status-label">Idle</div>
+                                    </div>
+                                    
+                                    <div class="sim-canvas-wrapper">
+                                        <!-- Interactive SVG Simulator Canvas -->
+                                        <svg class="sim-svg" id="sim-svg-canvas" viewBox="0 0 600 400" width="100%" height="100%">
+                                            <!-- SVG nodes and links generated by JS -->
+                                        </svg>
+                                    </div>
+                                    
+                                    <div class="sim-controls">
+                                        <button class="btn btn-secondary btn-xs" id="sim-play-pause-btn" disabled>
+                                            <i class="fas fa-play"></i> Play
+                                        </button>
+                                        <button class="btn btn-secondary btn-xs" id="sim-reset-btn" disabled>
+                                            <i class="fas fa-redo"></i> Reset
+                                        </button>
+                                        <span class="sim-explanation" id="sim-explanation-text">Select an option to simulate the architectural behavior.</span>
+                                    </div>
+                                </div>
+
+                                <!-- Answer Explanation Card (visible post-submit) -->
+                                <div class="explanation-card card" id="explanation-card" style="display: none;">
+                                    <div class="explanation-header" id="explanation-status-header">
+                                        <span class="status-badge" id="explanation-badge">Correct</span>
+                                        <h4 class="explanation-title" id="explanation-title-text">Why Option A Wins</h4>
+                                    </div>
+                                    <div class="explanation-body-text" id="explanation-body-text">
+                                        One domain. One auth flow. One error contract. The client stops caring...
+                                    </div>
+                                    <div class="other-options-explanations" id="other-options-explanations">
+                                        <!-- Dynamic wrong answers details -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </section>
+    </main>
+
+    <!-- SETTINGS MODAL (Gemini API Key Configuration) -->
+    <div class="modal-overlay" id="settings-modal">
+        <div class="modal-card card">
+            <div class="modal-header">
+                <h3><i class="fas fa-cog"></i> Settings & Configurations</h3>
+                <button class="modal-close-btn" id="close-settings-btn"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="gemini-key-input">Gemini API Key</label>
+                    <p class="form-help">Enter your Gemini API key to unlock the AI Diagnostic Report in the dashboard. The key is stored locally in your browser's local storage and is sent securely directly to the Gemini endpoint.</p>
+                    <div class="input-with-icon">
+                        <i class="fas fa-key input-icon"></i>
+                        <input type="password" id="gemini-key-input" placeholder="AIzaSy..." class="form-control">
+                    </div>
+                </div>
+                <div class="settings-actions">
+                    <button class="btn btn-secondary" id="reset-progress-btn">
+                        <i class="fas fa-trash-alt"></i> Reset All Test Progress
+                    </button>
+                    <button class="btn btn-primary" id="save-settings-btn">
+                        Save Configurations
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MarkDown Parser Library (for rendering Gemini markdown responses) -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Custom Application JS -->
+    <script src="app.js"></script>
+</body>
+</html>

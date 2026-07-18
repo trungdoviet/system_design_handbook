@@ -1,0 +1,95 @@
+[
+  {
+    "id": 1,
+    "title": "Solving Spring Circular Dependency",
+    "category": "Core & DI",
+    "scenario": "Class A autowires Class B, and Class B autowires Class A. During application startup, Spring fails to start with a BeanCurrentlyInCreationException. How should you resolve this circular dependency in a modern Spring Boot application?",
+    "options": [
+      {
+        "key": "A",
+        "text": "Use field injection instead of constructor injection. Spring will inject nulls temporarily and resolve them later."
+      },
+      {
+        "key": "B",
+        "text": "Refactor the code to break the cycle (e.g. introduce a third helper bean or event-driven interface). If refactoring isn't immediate, use @Lazy on one of the constructor parameters."
+      },
+      {
+        "key": "C",
+        "text": "Mark both beans with @Scope(\"prototype\") so that new instances are created indefinitely."
+      },
+      {
+        "key": "D",
+        "text": "Set spring.main.allow-circular-references=true in application.properties and forget about it."
+      }
+    ],
+    "correct_answer": "B",
+    "explanations": {
+      "A": "Field injection hides circular dependencies instead of resolving them, and Spring Boot 3+ disabled circular references by default.",
+      "B": "Correct. Breaking the cycle is the best design choice. If not possible, @Lazy tells Spring to inject a proxy wrapper that initializes the actual bean on its first usage, breaking the startup deadlock.",
+      "C": "Prototype scope with circular dependencies will lead to infinite recursion and an OutOfMemoryError / StackOverflowError.",
+      "D": "While it forces the app to boot, it is a bad practice that suppresses architectural flaws and was deprecated as a default option."
+    }
+  },
+  {
+    "id": 2,
+    "title": "Managing Transaction Rollback in Spring",
+    "category": "Transactions & AOP",
+    "scenario": "You have a method marked with @Transactional. Inside the method, a checked Exception (e.g. IOException) is thrown and caught inside the method block, but some database updates were already executed. What happens to the transaction, and how does Spring handle rollbacks by default?",
+    "options": [
+      {
+        "key": "A",
+        "text": "The transaction is rolled back immediately. Spring rolls back for all exceptions by default."
+      },
+      {
+        "key": "B",
+        "text": "The transaction commits anyway. By default, @Transactional only rolls back on unchecked exceptions (RuntimeException and Error)."
+      },
+      {
+        "key": "C",
+        "text": "The database locks the rows until the connection timeout occurs because checked exceptions freeze transaction completion."
+      },
+      {
+        "key": "D",
+        "text": "Spring rolls back checked exceptions if they are thrown, but commits if they are caught inside the method."
+      }
+    ],
+    "correct_answer": "B",
+    "explanations": {
+      "A": "Incorrect. Spring's default behavior is to roll back ONLY on RuntimeException (unchecked) and Error.",
+      "B": "Correct. Checked exceptions (subclasses of java.lang.Exception but not RuntimeException) do not trigger rollback by default. To change this, use @Transactional(rollbackFor = Exception.class).",
+      "C": "Exception throws don't hang connections; the transaction is completed (either committed or aborted) depending on Spring's rollback rules.",
+      "D": "Even if thrown out of the method, a checked exception won't trigger rollback unless explicitly configured."
+    }
+  },
+  {
+    "id": 3,
+    "title": "Spring Boot JPA N+1 Query Prevention",
+    "category": "Spring Data JPA",
+    "scenario": "You are using Spring Data JPA. A User entity has a @OneToMany relationship with Order. When you load 100 users and access their orders, Hibernate executes 101 SELECT queries (N+1 problem). How do you resolve this using Spring Data JPA repository methods?",
+    "options": [
+      {
+        "key": "A",
+        "text": "Annotate the relationship with @OneToMany(fetch = FetchType.LAZY) so orders are loaded lazily."
+      },
+      {
+        "key": "B",
+        "text": "Use @Query(\"SELECT u FROM User u JOIN FETCH u.orders\") in your repository method to perform an eager fetch join in a single query."
+      },
+      {
+        "key": "C",
+        "text": "Wrap the repository call inside a @Transactional block, which merges queries automatically."
+      },
+      {
+        "key": "D",
+        "text": "Increase Hibernate's connection pool size so queries are executed in parallel."
+      }
+    ],
+    "correct_answer": "B",
+    "explanations": {
+      "A": "FetchType.LAZY is the default for @OneToMany, and it is the direct cause of the N+1 queries when orders are subsequently accessed in a loop.",
+      "B": "Correct. JOIN FETCH tells JPA/Hibernate to generate a single SQL join query and eagerly fetch the orders collection for all users in one go, preventing N+1 queries.",
+      "C": "Transactions preserve cache and connection scope but do not automatically merge lazy-load calls into join queries.",
+      "D": "Hibernate does not execute lazy query lookups in parallel. Running 100 serial queries will always be a major performance bottleneck."
+    }
+  }
+]

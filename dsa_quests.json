@@ -1,0 +1,95 @@
+[
+  {
+    "id": 1,
+    "title": "Finding Duplicates in a Read-Only Array",
+    "category": "Array & Sorting",
+    "scenario": "You are given a read-only array of n + 1 integers where each integer is between 1 and n (inclusive). You need to find a duplicate integer without modifying the array and using only O(1) extra space. The array can have multiple duplicates.",
+    "options": [
+      {
+        "key": "A",
+        "text": "Sort the array first and then scan sequentially. O(n log n) time, O(1) space."
+      },
+      {
+        "key": "B",
+        "text": "Use Floyd's Cycle Detection Algorithm (Tortoise and Hare) by treating the array as a linked list. O(n) time, O(1) space."
+      },
+      {
+        "key": "C",
+        "text": "Use a Hash Set to store visited numbers. O(n) time, O(n) space."
+      },
+      {
+        "key": "D",
+        "text": "Use Binary Search on the range [1, n]. O(n log n) time, O(1) space."
+      }
+    ],
+    "correct_answer": "B",
+    "explanations": {
+      "A": "Sorting is invalid because the array is read-only (modifying it is not allowed, or copy requires O(n) space).",
+      "B": "Correct. Treating array values as pointers to indices creates a linked list with a cycle. Floyd's cycle detection locates the duplicate (start of cycle) in O(n) time and O(1) space.",
+      "C": "Violates the O(1) extra space requirement, as the hash set grows linearly with unique items.",
+      "D": "Works and fits constraints, but Floyd's algorithm runs in O(n) which is strictly better than O(n log n)."
+    }
+  },
+  {
+    "id": 2,
+    "title": "Optimizing LRU Cache Eviction",
+    "category": "Design & Data Structures",
+    "scenario": "You need to design an LRU (Least Recently Used) cache with get(key) and put(key, value) operations. Both operations must run in O(1) average time complexity. Which combined data structure should you use?",
+    "options": [
+      {
+        "key": "A",
+        "text": "A singly linked list sorted by access order. O(1) insertions, O(n) searches."
+      },
+      {
+        "key": "B",
+        "text": "A binary search tree combined with an array. O(log n) average time."
+      },
+      {
+        "key": "C",
+        "text": "A Hash Map combined with a Doubly Linked List. Map stores keys pointing to list nodes, list tracks access order."
+      },
+      {
+        "key": "D",
+        "text": "A Min-Heap where the key is the timestamp of last access. O(log n) updates."
+      }
+    ],
+    "correct_answer": "C",
+    "explanations": {
+      "A": "Singly linked list lookup is O(n), failing the O(1) constraint.",
+      "B": "BST operations are O(log n), failing the O(1) constraint.",
+      "C": "Correct. Hash map provides O(1) lookup. Doubly linked list allows O(1) updates to remove nodes and move them to the head in O(1) time.",
+      "D": "Min-Heap eviction is O(1) (root), but updating/searching arbitrary keys is O(log n) or O(n) respectively."
+    }
+  },
+  {
+    "id": 3,
+    "title": "Validating Parentheses Nesting",
+    "category": "Stacks & Queues",
+    "scenario": "You are parsing a code file and need to validate if brackets '(', ')', '{', '}', '[', and ']' are nested and closed correctly. Which data structure is most appropriate?",
+    "options": [
+      {
+        "key": "A",
+        "text": "A Queue (FIFO) - check incoming closing brackets against the front of the queue."
+      },
+      {
+        "key": "B",
+        "text": "A Stack (LIFO) - push opening brackets, pop and compare on closing brackets."
+      },
+      {
+        "key": "C",
+        "text": "A Hash Set - insert brackets and verify they are all paired at the end."
+      },
+      {
+        "key": "D",
+        "text": "A Doubly Ended Queue (Deque) - process elements from both sides towards the center."
+      }
+    ],
+    "correct_answer": "B",
+    "explanations": {
+      "A": "FIFO queue doesn't match bracket nesting. The last bracket opened must be the first one closed.",
+      "B": "Correct. A stack correctly handles nesting because the most recently opened bracket is at the top of the stack and must match the next closing bracket.",
+      "C": "Hash sets do not preserve order, which is critical to verifying nesting sequences.",
+      "D": "Nesting validation requires relative ordering, which a deque alone doesn't solve without acting as a stack."
+    }
+  }
+]
