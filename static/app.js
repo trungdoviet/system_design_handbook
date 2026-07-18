@@ -476,6 +476,7 @@ function renderQuestList(filterCategory = 'all') {
     const list = document.getElementById('quest-list');
     list.innerHTML = '';
 
+    let index = 1;
     state.quests.forEach(q => {
         if (filterCategory !== 'all' && q.category !== filterCategory) return;
 
@@ -495,11 +496,12 @@ function renderQuestList(filterCategory = 'all') {
 
         li.innerHTML = `
             <div class="quest-item-content">
-                <span class="quest-item-day">DAY ${String(q.id).padStart(2, '0')}</span>
+                <span class="quest-item-day">DAY ${String(index).padStart(2, '0')}</span>
                 <span class="quest-item-title" title="${q.title}">${q.title}</span>
             </div>
             ${statusHtml}
         `;
+        index++;
 
         li.addEventListener('click', () => fetchQuestDetail(q.id));
         list.appendChild(li);
@@ -581,10 +583,11 @@ function showQuestWorkspace() {
     renderQuestList(document.getElementById('category-filter').value);
 
     const q = state.activeQuest;
-    document.getElementById('quest-day-num').textContent = `DAY ${String(q.id).padStart(2, '0')}`;
+    const qIndex = state.quests.findIndex(quest => quest.id === q.id) + 1;
+    document.getElementById('quest-day-num').textContent = `DAY ${String(qIndex).padStart(2, '0')}`;
     document.getElementById('quest-cat-pill').textContent = q.category;
     document.getElementById('quest-title-text').textContent = q.title;
-    document.getElementById('quest-scenario-text').textContent = q.scenario;
+    document.getElementById('quest-scenario-text').innerHTML = marked.parse(q.scenario);
 
     // Load Ratings Badge
     const ratePill = document.getElementById('quest-rating-pill');
@@ -747,7 +750,7 @@ function revealAnswerPanel(answeredKey, isCorrect) {
         }
     }
 
-    document.getElementById('explanation-body-text').innerHTML = formatExplanationText(q.explanations[q.correct_answer]);
+    document.getElementById('explanation-body-text').innerHTML = marked.parse(formatExplanationText(q.explanations[q.correct_answer]));
 
     const otherContainer = document.getElementById('other-options-explanations');
     otherContainer.innerHTML = '';
@@ -757,7 +760,7 @@ function revealAnswerPanel(answeredKey, isCorrect) {
         
         const optDiv = document.createElement('div');
         optDiv.className = 'other-opt-exp';
-        optDiv.innerHTML = `<strong>Option ${key}:</strong> ${formatExplanationText(text)}`;
+        optDiv.innerHTML = `<strong>Option ${key}:</strong> ${marked.parse(formatExplanationText(text))}`;
         otherContainer.appendChild(optDiv);
     });
 }
@@ -1232,13 +1235,150 @@ function startFlowSimulation(answeredKey) {
 // Generate the node structure based on selection
 function getSimulationSchema(topicId, category, dayId, selectedKey) {
     const isCorrect = state.activeQuest && selectedKey === state.activeQuest.correct_answer;
+    const title = state.activeQuest ? state.activeQuest.title : "";
     
     let nodes = [];
     let links = [];
     let flows = [];
     let explanationText = "";
 
-    if (topicId === 'system_design') {
+    // Check custom advanced questions first (by title matching)
+    if (title.includes("Split-Brain")) {
+        nodes = [
+            { x: 100, y: 120, label: "Node A (Old Ldr)", icon: "👑", status: selectedKey === 'B' ? "warning" : "active" },
+            { x: 100, y: 280, label: "Node B", icon: "🖥️", status: selectedKey === 'B' ? "warning" : "active" },
+            { x: 450, y: 100, label: "Node C (New Ldr)", icon: "👑", status: selectedKey === 'B' ? "success" : "active" },
+            { x: 450, y: 200, label: "Node D", icon: "🖥️", status: "active" },
+            { x: 450, y: 300, label: "Node E", icon: "🖥️", status: "active" }
+        ];
+        links = [
+            { id: "a-to-b", d: "M 100 144 L 100 256" },
+            { id: "c-to-d", d: "M 450 124 L 450 176" },
+            { id: "d-to-e", d: "M 450 224 L 450 276" },
+            { id: "partition-line", d: "M 280 50 L 280 350", style: "dash" }
+        ];
+        if (selectedKey === 'B') {
+            flows = [
+                { path: "M 450 124 L 450 176", status: "success", dur: "1.5s" },
+                { path: "M 450 224 L 450 276", status: "success", dur: "1.5s", begin: "0.5s" }
+            ];
+            explanationText = "Term Increments: Partition majority elects C. Upon healing, heartbeats override stagnant Node A, resetting uncommitted logs.";
+        } else {
+            flows = [
+                { path: "M 100 144 L 100 256", status: "error", dur: "1s" }
+            ];
+            explanationText = "Split-Brain Danger: Node A accepts writes in isolation, but lacks quorum. Reconnect causes conflicts.";
+        }
+    } else if (title.includes("Consistent Hashing")) {
+        nodes = [
+            { x: 300, y: 80, label: "Node A", icon: "🗄️", status: "success" },
+            { x: 420, y: 240, label: "Node B (Crashed)", icon: "❌", status: selectedKey === 'B' ? "error" : "warning" },
+            { x: 180, y: 240, label: "Node C", icon: "🗄️", status: "success" }
+        ];
+        links = [
+            { id: "ring", d: "M 300 200 m -80 0 a 80 80 0 1 0 160 0 a 80 80 0 1 0 -160 0", style: "dash" }
+        ];
+        if (selectedKey === 'B') {
+            flows = [
+                { path: "M 300 200 m 0 -80 a 80 80 0 1 1 56 136", status: "success", dur: "2.5s" }
+            ];
+            explanationText = "Clockwise redistribution: Keys previously routed to B now slide clockwise onto Node C. Minimal key rehash!";
+        } else {
+            flows = [
+                { path: "M 300 200 m 0 -80 a 80 80 0 1 0 -56 136", status: "error", dur: "1.5s" }
+            ];
+            explanationText = "Inefficient distribution: Entire ring state scrambled. Non-B keys relocated needlessly.";
+        }
+    } else if (title.includes("Checked Exception")) {
+        nodes = [
+            { x: 100, y: 200, label: "App Caller", icon: "🖥️", status: "active" },
+            { x: 300, y: 200, label: "AOP Proxy", icon: "🛡️", status: "active" },
+            { x: 500, y: 200, label: "Database", icon: "🗄️", status: selectedKey === 'B' ? "error" : "success" }
+        ];
+        links = [
+            { id: "call-to-proxy", d: "M 124 200 L 276 200" },
+            { id: "proxy-to-db", d: "M 324 200 L 476 200" }
+        ];
+        if (selectedKey === 'B') {
+            flows = [
+                { path: "M 124 200 L 276 200", status: "success", dur: "1.5s" },
+                { path: "M 276 200 L 476 200", status: "error", dur: "1.5s", begin: "0.5s" }
+            ];
+            explanationText = "Checked Exception: Transaction commits despite IOException throw! Status remains 'PROCESSING'.";
+        } else {
+            flows = [
+                { path: "M 124 200 L 276 200", status: "success", dur: "1.5s" }
+            ];
+            explanationText = "Transaction Rolled Back safely because rollbackFor parameter was configured.";
+        }
+    } else if (title.includes("Circular Reference")) {
+        nodes = [
+            { x: 120, y: 200, label: "OrderService", icon: "⚙️", status: "active" },
+            { x: 300, y: 200, label: "LazyProxy", icon: "🛡️", status: selectedKey === 'B' ? "success" : "error" },
+            { x: 480, y: 200, label: "PaymentService", icon: "⚙️", status: "active" }
+        ];
+        links = [
+            { id: "cycle-forward", d: "M 144 190 Q 300 120 456 190" },
+            { id: "cycle-back", d: "M 456 210 Q 300 280 144 210" }
+        ];
+        if (selectedKey === 'B') {
+            flows = [
+                { path: "M 144 190 Q 300 120 456 190", status: "success", dur: "2s" }
+            ];
+            explanationText = "@Lazy Injector: Spring supplies a lazy proxy during instantiation, breaking circular boot locks.";
+        } else {
+            flows = [
+                { path: "M 144 190 Q 300 120 456 190", status: "error", dur: "0.5s" },
+                { path: "M 456 210 Q 300 280 144 210", status: "error", dur: "0.5s", begin: "0.2s" }
+            ];
+            explanationText = "BeanCurrentlyInCreationException! Infinite constructor recursion lock crash.";
+        }
+    } else if (title.includes("LRU Cache")) {
+        nodes = [
+            { x: 100, y: 150, label: "Key 4 (MRU)", icon: "📦", status: "success" },
+            { x: 250, y: 150, label: "Key 1", icon: "📦", status: "active" },
+            { x: 400, y: 150, label: "Key 3 (LRU)", icon: "📦", status: "active" },
+            { x: 250, y: 300, label: "Key 2 (Evicted)", icon: "🗑️", status: "error" }
+        ];
+        links = [
+            { id: "l1", d: "M 124 150 L 226 150" },
+            { id: "l2", d: "M 274 150 L 376 150" },
+            { id: "evict-path", d: "M 400 174 L 274 276", style: "dash" }
+        ];
+        if (selectedKey === 'B') {
+            flows = [
+                { path: "M 400 174 L 274 276", status: "error", dur: "1.5s" }
+            ];
+            explanationText = "LRU Eviction: Tail element (Key 2) evicted. Read key 1 moves to head, key 4 is placed at front.";
+        } else {
+            flows = [
+                { path: "M 274 150 L 376 150", status: "warning", dur: "2s" }
+            ];
+            explanationText = "Wrong state order. Access updates are not tracked correctly.";
+        }
+    } else if (title.includes("Broadcast Join")) {
+        nodes = [
+            { x: 100, y: 200, label: "Driver", icon: "🖥️", status: "success" },
+            { x: 420, y: 100, label: "Executor 1", icon: "⚙️", status: "active" },
+            { x: 420, y: 300, label: "Executor 2", icon: "⚙️", status: "active" }
+        ];
+        links = [
+            { id: "drv-to-w1", d: "M 124 200 L 396 100" },
+            { id: "drv-to-w2", d: "M 124 200 L 396 300" }
+        ];
+        if (selectedKey === 'B') {
+            flows = [
+                { path: "M 124 200 L 396 100", status: "success", dur: "1.5s" },
+                { path: "M 124 200 L 396 300", status: "success", dur: "1.5s" }
+            ];
+            explanationText = "Map-Side Broadcast: Small ZipCodes table (5MB) replicated to executors. No shuffle for UserActions!";
+        } else {
+            flows = [
+                { path: "M 396 100 L 396 300", status: "error", dur: "1s" }
+            ];
+            explanationText = "Network Shuffle bottleneck! Data redistributed across executors, triggering OOM.";
+        }
+    } else if (topicId === 'system_design') {
         if (dayId === 1) {
             if (selectedKey === 'A') {
                 nodes = [
