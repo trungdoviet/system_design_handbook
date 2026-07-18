@@ -94,6 +94,12 @@ def get_current_user(db: Session = Depends(get_db), x_user_email: str = Header(N
 class AuthLoginPayload(BaseModel):
     email: str
 
+class AuthRegisterPayload(BaseModel):
+    email: str
+    name: str
+    oauth_provider: Optional[str] = None
+    oauth_id: Optional[str] = None
+
 class QuestProgressPayload(BaseModel):
     answered: str
     correct: bool
@@ -149,6 +155,41 @@ async def auth_login_dev(payload: AuthLoginPayload, db: Session = Depends(get_db
     if not user:
         raise HTTPException(status_code=404, detail="Test account not found in database.")
     return {"status": "ok", "email": user.email}
+
+@app.post("/api/auth/register-or-login")
+async def auth_register_or_login(payload: AuthRegisterPayload, db: Session = Depends(get_db)):
+    if not payload.email or "@" not in payload.email:
+        raise HTTPException(status_code=400, detail="Invalid email address format.")
+        
+    user = db.query(User).filter(User.email == payload.email).first()
+    if not user:
+        avatar = f"https://api.dicebear.com/7.x/bottts/svg?seed={payload.name.replace(' ', '_')}"
+        user = User(
+            email=payload.email,
+            name=payload.name,
+            role="user",
+            coin_balance=100,
+            avatar_url=avatar,
+            oauth_provider=payload.oauth_provider,
+            oauth_id=payload.oauth_id
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    else:
+        if payload.oauth_provider:
+            user.oauth_provider = payload.oauth_provider
+            user.oauth_id = payload.oauth_id
+            db.commit()
+            
+    return {
+        "status": "ok",
+        "email": user.email,
+        "name": user.name,
+        "role": user.role,
+        "coin_balance": user.coin_balance
+    }
+
 
 @app.get("/api/auth/test-users")
 async def get_test_users(db: Session = Depends(get_db)):

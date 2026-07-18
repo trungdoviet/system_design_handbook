@@ -96,14 +96,35 @@ function applyTheme() {
 // ==========================================================================
 async function fetchCurrentUser() {
     try {
+        const hasSession = localStorage.getItem('sandbox_email');
+        const widget = document.getElementById('user-status-widget');
+        const signInBtn = document.getElementById('header-signin-btn');
+
+        if (!hasSession) {
+            // Unlogged Guest Mode
+            state.currentUser = null;
+            if (widget) widget.style.display = 'none';
+            if (signInBtn) signInBtn.style.display = 'inline-flex';
+            
+            // Hide special views on landing
+            const specBtn = document.getElementById('landing-go-specialist-btn');
+            if (specBtn) specBtn.style.display = 'none';
+            updateApiKeyStatus();
+            return;
+        }
+
         const res = await apiFetch('/api/auth/me');
-        if (!res.ok) throw new Error("Failed to authenticate user");
+        if (!res.ok) {
+            localStorage.removeItem('sandbox_email');
+            await fetchCurrentUser();
+            return;
+        }
         
         state.currentUser = await res.json();
         
         // Show status widget
-        const widget = document.getElementById('user-status-widget');
-        widget.style.display = 'flex';
+        if (widget) widget.style.display = 'flex';
+        if (signInBtn) signInBtn.style.display = 'none';
         
         document.getElementById('user-coins-val').textContent = state.currentUser.coin_balance;
         document.getElementById('user-avatar-img').src = state.currentUser.avatar_url;
@@ -117,10 +138,12 @@ async function fetchCurrentUser() {
 
         // Toggle Specialist Desk button on landing page if specialist or admin
         const specBtn = document.getElementById('landing-go-specialist-btn');
-        if (state.currentUser.role === 'specialist' || state.currentUser.role === 'admin') {
-            specBtn.style.display = 'inline-flex';
-        } else {
-            specBtn.style.display = 'none';
+        if (specBtn) {
+            if (state.currentUser.role === 'specialist' || state.currentUser.role === 'admin') {
+                specBtn.style.display = 'inline-flex';
+            } else {
+                specBtn.style.display = 'none';
+            }
         }
 
         updateApiKeyStatus();
@@ -259,14 +282,42 @@ function setupEventListeners() {
     });
     document.getElementById('reset-progress-btn').addEventListener('click', async () => {
         if (confirm("Reset SQLite Database? This will restore original questions and reset all progression histories.")) {
-            // Since resetting database requires backend re-seeding, we can trigger a python command or tell the user to re-run.
-            // For now, we will clear local user progresses from storage and reset scores.
             state.userProgress = {};
-            // Let's call endpoint to clear database user progress table
             alert("Database re-seeding requires re-running 'migrate_json_to_db.py' on the terminal. Local client data resets.");
             settingsModal.classList.remove('active');
         }
     });
+
+    // Authentication Modal & Toggles
+    const authModal = document.getElementById('auth-modal');
+    document.getElementById('header-signin-btn').addEventListener('click', () => {
+        document.getElementById('auth-email').value = '';
+        document.getElementById('auth-name').value = '';
+        authModal.classList.add('active');
+    });
+    document.getElementById('close-auth-btn').addEventListener('click', () => {
+        authModal.classList.remove('active');
+    });
+    document.getElementById('header-signout-btn').addEventListener('click', () => {
+        localStorage.removeItem('sandbox_email');
+        alert("Signed out successfully!");
+        fetchCurrentUser();
+        showLandingScreen();
+    });
+    
+    // Auth Form Submit
+    document.getElementById('auth-form').addEventListener('submit', handleAuthFormSubmit);
+
+    // Simulated Social OAuth
+    document.getElementById('oauth-google-btn').addEventListener('click', () => openOAuthConsentPopup('google'));
+    document.getElementById('oauth-facebook-btn').addEventListener('click', () => openOAuthConsentPopup('facebook'));
+    document.getElementById('close-consent-btn').addEventListener('click', () => {
+        document.getElementById('oauth-consent-modal').classList.remove('active');
+    });
+    document.getElementById('oauth-consent-deny-btn').addEventListener('click', () => {
+        document.getElementById('oauth-consent-modal').classList.remove('active');
+    });
+    document.getElementById('oauth-consent-allow-btn').addEventListener('click', handleOAuthConsentAllow);
 
     // Sidebar Category Filter
     document.getElementById('category-filter').addEventListener('change', (e) => {
@@ -302,6 +353,101 @@ function setupEventListeners() {
     document.getElementById('spec-save-edits-btn').addEventListener('click', saveSpecialistEdits);
     document.getElementById('spec-approve-btn').addEventListener('click', approveQuestSubmission);
     document.getElementById('spec-post-note-btn').addEventListener('click', addReviewCommentNote);
+}
+
+// --- Authentications Modal Handlers ---
+async function handleAuthFormSubmit(e) {
+    e.preventDefault();
+    const email = document.getElementById('auth-email').value.trim();
+    const name = document.getElementById('auth-name').value.trim() || "Anonymous Student";
+
+    try {
+        const res = await fetch('/api/auth/register-or-login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, name })
+        });
+
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.detail || "Authentication failed");
+        }
+
+        const data = await res.json();
+        localStorage.setItem('sandbox_email', data.email);
+        document.getElementById('auth-modal').classList.remove('active');
+        alert(`Signed in successfully as ${data.name}!`);
+        await fetchCurrentUser();
+        showLandingScreen();
+    } catch (err) {
+        alert(err.message);
+    }
+}
+
+let activeOAuthProvider = null;
+
+function openOAuthConsentPopup(provider) {
+    activeOAuthProvider = provider;
+    
+    const title = document.getElementById('oauth-consent-title');
+    const text = document.getElementById('oauth-consent-text');
+    const simEmail = document.getElementById('oauth-sim-email');
+    const simName = document.getElementById('oauth-sim-name');
+
+    if (provider === 'google') {
+        title.innerHTML = '<i class="fab fa-google" style="color: #db4437;"></i> Google OAuth Consent';
+        text.textContent = 'This is a sandbox simulation of Google Sign-In. Allow Tech Mastery Portal to receive your email and profile name?';
+        simEmail.value = 'john.doe@gmail.com';
+        simName.value = 'John Doe (Google)';
+    } else {
+        title.innerHTML = '<i class="fab fa-facebook-f" style="color: #4267b2;"></i> Facebook OAuth Consent';
+        text.textContent = 'This is a sandbox simulation of Facebook Sign-In. Allow Tech Mastery Portal to receive your email and profile name?';
+        simEmail.value = 'jane.smith@facebook.com';
+        simName.value = 'Jane Smith (Facebook)';
+    }
+
+    document.getElementById('oauth-consent-modal').classList.add('active');
+}
+
+async function handleOAuthConsentAllow() {
+    const email = document.getElementById('oauth-sim-email').value.trim();
+    const name = document.getElementById('oauth-sim-name').value.trim();
+
+    if (!email || !name) {
+        alert("Please provide both a simulated email and name.");
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/auth/register-or-login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                email,
+                name,
+                oauth_provider: activeOAuthProvider,
+                oauth_id: `mock-oauth-id-${Date.now()}`
+            })
+        });
+
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.detail || "Simulated OAuth failed");
+        }
+
+        const data = await res.json();
+        localStorage.setItem('sandbox_email', data.email);
+        
+        // Hide modals
+        document.getElementById('oauth-consent-modal').classList.remove('active');
+        document.getElementById('auth-modal').classList.remove('active');
+        
+        alert(`Signed in successfully with ${activeOAuthProvider.toUpperCase()} as ${data.name}!`);
+        await fetchCurrentUser();
+        showLandingScreen();
+    } catch (err) {
+        alert(err.message);
+    }
 }
 
 // ==========================================================================

@@ -34,7 +34,14 @@
                     <span id="user-role-label">Student</span>
                 </div>
             </div>
+            <button class="btn btn-secondary btn-xs" id="header-signout-btn" style="margin-left: 8px; padding: 4px 8px;" title="Sign Out">
+                <i class="fas fa-sign-out-alt"></i>
+            </button>
         </div>
+        
+        <button class="btn btn-primary btn-sm" id="header-signin-btn" style="display: none;">
+            <i class="fas fa-sign-in-alt"></i> <span>Sign In / Sign Up</span>
+        </button>
 
         <div class="header-actions">
             <!-- Sandbox Developer Switcher -->
@@ -561,6 +568,79 @@
                     <button class="btn btn-primary" id="save-settings-btn">
                         Save Configurations
                     </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AUTH MODAL (Sign In & Sign Up) -->
+    <div class="modal-overlay" id="auth-modal">
+        <div class="modal-card card" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-user-circle"></i> Sign In / Sign Up</h3>
+                <button class="modal-close-btn" id="close-auth-btn"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="auth-form" class="submission-form" style="gap: 12px;">
+                    <div class="form-group" style="margin-bottom: 12px;">
+                        <label for="auth-email">Email Address</label>
+                        <div class="input-with-icon">
+                            <i class="fas fa-envelope input-icon"></i>
+                            <input type="email" id="auth-email" placeholder="you@domain.com" class="form-control" required style="padding-left: 36px;">
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 12px;" id="auth-name-group">
+                        <label for="auth-name">Full Name (Only required for Sign Up)</label>
+                        <div class="input-with-icon">
+                            <i class="fas fa-signature input-icon"></i>
+                            <input type="text" id="auth-name" placeholder="John Doe" class="form-control" style="padding-left: 36px;">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block" id="auth-submit-btn">
+                        Sign In / Register
+                    </button>
+                </form>
+
+                <div style="display: flex; align-items: center; text-align: center; margin: 20px 0; color: var(--text-secondary); font-size: 0.8rem;">
+                    <span style="flex-grow: 1; height: 1px; background-color: var(--border-color); margin-right: 10px;"></span>
+                    <span>OR CONTINUE WITH</span>
+                    <span style="flex-grow: 1; height: 1px; background-color: var(--border-color); margin-left: 10px;"></span>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <button class="btn btn-secondary btn-block" id="oauth-google-btn" style="border-color: rgba(219, 68, 85, 0.4); background-color: rgba(219, 68, 85, 0.05); color: #db4437; padding: 10px;">
+                        <i class="fab fa-google"></i> Sign In with Google
+                    </button>
+                    <button class="btn btn-secondary btn-block" id="oauth-facebook-btn" style="border-color: rgba(66, 103, 178, 0.4); background-color: rgba(66, 103, 178, 0.05); color: #4267b2; padding: 10px;">
+                        <i class="fab fa-facebook-f"></i> Sign In with Facebook
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- OAUTH SIMULATION CONSENT MODAL -->
+    <div class="modal-overlay" id="oauth-consent-modal" style="z-index: 1100;">
+        <div class="modal-card card" style="max-width: 360px; background-color: var(--bg-secondary); border-color: var(--primary);">
+            <div class="modal-header" style="border-bottom: none; margin-bottom: 10px;">
+                <h4 id="oauth-consent-title"><i class="fab fa-google"></i> Google OAuth Consent</h4>
+                <button class="modal-close-btn" id="close-consent-btn"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body text-center">
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 20px;" id="oauth-consent-text">
+                    This is a sandbox simulation of Google Sign-In. Allow Tech Mastery Portal to receive your email and profile name?
+                </p>
+                <div class="form-group" style="text-align: left; margin-bottom: 20px;">
+                    <label for="oauth-sim-email">Simulated Account Email</label>
+                    <input type="email" id="oauth-sim-email" class="form-control" style="padding-left:12px;" required>
+                </div>
+                <div class="form-group" style="text-align: left; margin-bottom: 20px;">
+                    <label for="oauth-sim-name">Simulated Account Name</label>
+                    <input type="text" id="oauth-sim-name" class="form-control" style="padding-left:12px;" required>
+                </div>
+                <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                    <button class="btn btn-secondary btn-sm" id="oauth-consent-deny-btn">Deny</button>
+                    <button class="btn btn-primary btn-sm" id="oauth-consent-allow-btn">Allow & Consent</button>
                 </div>
             </div>
         </div>
