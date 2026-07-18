@@ -20,15 +20,47 @@
             <span class="logo-icon">🚀</span>
             <h1 class="logo-text">TechMastery<span>Portal</span></h1>
         </div>
+
+        <!-- Auth & Coins Display -->
+        <div class="user-status-widget" id="user-status-widget" style="display: none;">
+            <div class="coins-badge" id="coins-display-badge" title="Coin Balance (Earned from ratings / spendable on AI Diagnostic Reviews)">
+                <i class="fas fa-coins text-glow-gold"></i>
+                <span id="user-coins-val">100</span>
+            </div>
+            <div class="user-profile-badge" id="user-profile-badge">
+                <img id="user-avatar-img" src="" alt="Avatar">
+                <div class="user-profile-info">
+                    <span id="user-display-name">Alice</span>
+                    <span id="user-role-label">Student</span>
+                </div>
+            </div>
+        </div>
+
         <div class="header-actions">
+            <!-- Sandbox Developer Switcher -->
+            <button class="btn btn-secondary btn-sm" id="open-dev-btn" title="Toggle Sandbox Dev Accounts Swapper">
+                <i class="fas fa-users-cog"></i> <span>Dev Console</span>
+            </button>
             <button class="btn btn-secondary btn-icon-only" id="theme-toggle" title="Toggle Theme">
                 <i class="fas fa-moon"></i>
             </button>
-            <button class="btn btn-primary" id="open-settings-btn">
-                <i class="fas fa-key"></i> <span>Gemini API Key</span>
+            <button class="btn btn-primary btn-sm" id="open-settings-btn">
+                <i class="fas fa-key"></i> <span>Gemini Settings</span>
             </button>
         </div>
     </header>
+
+    <!-- Sandbox Developer Swapper Console Drawer -->
+    <div class="dev-drawer" id="dev-drawer">
+        <div class="dev-drawer-header">
+            <h4><i class="fas fa-tools"></i> Developer Accounts swapper</h4>
+            <button id="close-dev-btn"><i class="fas fa-times"></i></button>
+        </div>
+        <p class="dev-drawer-help">Swap identities instantly in this sandbox to test submissions, specialist reviews, level progressions, and coin transactions.</p>
+        <div class="dev-users-list" id="dev-users-list">
+            <!-- Populated by JS -->
+        </div>
+    </div>
 
     <!-- Main Container -->
     <main class="app-container">
@@ -37,6 +69,16 @@
             <div class="hero-section">
                 <h2 class="hero-title">Master Production-Grade Systems & Logic</h2>
                 <p class="hero-subtitle">Interactive multiple-choice quests, live system simulations, and AI-driven architect reports.</p>
+                
+                <!-- Quick Navigation Bars -->
+                <div class="landing-nav-bar">
+                    <button class="btn btn-secondary btn-sm" id="landing-go-contribute-btn">
+                        <i class="fas fa-edit"></i> Contributor Desk (Submit Questions)
+                    </button>
+                    <button class="btn btn-secondary btn-sm" id="landing-go-specialist-btn" style="display: none;">
+                        <i class="fas fa-tasks"></i> Specialist Moderation Desk
+                    </button>
+                </div>
             </div>
             
             <div class="topics-grid" id="topics-grid">
@@ -114,7 +156,7 @@
                                 </div>
                                 <span class="ai-status-tag" id="ai-status">Waiting for key...</span>
                             </div>
-                            <p class="ai-desc">Get an in-depth code-architect assessment of your technical strengths and weak areas. Requires a Gemini API Key.</p>
+                            <p class="ai-desc">Get an in-depth code-architect assessment of your technical strengths and weak areas. Spend **10 coins** from your balance, or configure a personal Gemini API Key.</p>
                             <div class="ai-controls">
                                 <button class="btn btn-primary" id="trigger-ai-feedback-btn">
                                     <i class="fas fa-sparkles"></i> Generate AI Diagnostic Report
@@ -135,6 +177,7 @@
                             <div class="quest-metadata">
                                 <span class="quest-day" id="quest-day-num">DAY 01</span>
                                 <span class="quest-category-pill" id="quest-cat-pill">API Design</span>
+                                <span class="quest-rating-pill" id="quest-rating-pill" style="display: none;"><i class="fas fa-star text-glow-gold"></i> <span id="quest-rating-val">4.5</span></span>
                             </div>
                             <h3 class="quest-title" id="quest-title-text">Decoupling Mobile from Backend Services</h3>
                         </div>
@@ -211,7 +254,289 @@
                 </section>
             </div>
         </section>
+
+        <!-- SCREEN 3: CONTRIBUTOR DESK (Question Submission Form) -->
+        <section id="contribute-screen" class="screen">
+            <div class="contribute-workspace card">
+                <div class="workspace-header-row">
+                    <h3><i class="fas fa-edit"></i> Submit a New Question</h3>
+                    <button class="btn btn-secondary btn-sm" id="contribute-cancel-btn">
+                        <i class="fas fa-arrow-left"></i> Cancel and Return
+                    </button>
+                </div>
+                <p class="contribute-desc">Contribute a questionnaire to a category. Specialists will review and refine your question. Once published, you earn coins from rating metrics!</p>
+                
+                <form id="submission-form" class="submission-form">
+                    <div class="form-row">
+                        <div class="form-group col-6">
+                            <label for="sub-topic">Target Topic</label>
+                            <select id="sub-topic" class="form-select" style="padding-left: 12px;">
+                                <option value="system_design">System Design Questions</option>
+                                <option value="dsa">Data Structures & Algorithms</option>
+                                <option value="etl">ETL Pipelines</option>
+                                <option value="spring">Spring Framework</option>
+                            </select>
+                        </div>
+                        <div class="form-group col-6">
+                            <label for="sub-category">Category / Domain Tag</label>
+                            <input type="text" id="sub-category" class="form-control" style="padding-left: 12px;" placeholder="e.g., Caching & Performance, Core & DI" required>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="sub-title">Question Title</label>
+                        <input type="text" id="sub-title" class="form-control" style="padding-left: 12px;" placeholder="e.g., Implementing Read-Your-Writes Consistency" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="sub-scenario">Scenario / Context Description (Markdown formatting supported)</label>
+                        <textarea id="sub-scenario" class="form-control text-area" rows="6" placeholder="Describe the architectural challenge, constraints, P95 values, and DB settings..." required></textarea>
+                    </div>
+
+                    <div class="options-inputs-block">
+                        <h4>Multiple Choice Options</h4>
+                        <div class="form-row">
+                            <div class="form-group col-6">
+                                <label for="sub-opt-a">Option A</label>
+                                <input type="text" id="sub-opt-a" class="form-control option-field" placeholder="Answer option details..." required>
+                            </div>
+                            <div class="form-group col-6">
+                                <label for="sub-opt-b">Option B</label>
+                                <input type="text" id="sub-opt-b" class="form-control option-field" placeholder="Answer option details..." required>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group col-6">
+                                <label for="sub-opt-c">Option C</label>
+                                <input type="text" id="sub-opt-c" class="form-control option-field" placeholder="Answer option details..." required>
+                            </div>
+                            <div class="form-group col-6">
+                                <label for="sub-opt-d">Option D</label>
+                                <input type="text" id="sub-opt-d" class="form-control option-field" placeholder="Answer option details..." required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group col-4" style="margin-top: 12px;">
+                        <label for="sub-correct">Correct Answer Option</label>
+                        <select id="sub-correct" class="form-select" style="padding-left: 12px;">
+                            <option value="A">Option A</option>
+                            <option value="B">Option B</option>
+                            <option value="C">Option C</option>
+                            <option value="D">Option D</option>
+                        </select>
+                    </div>
+
+                    <div class="explanations-inputs-block" style="margin-top: 16px;">
+                        <h4>Explanations for Options (Why they win, why they are wrong/traps)</h4>
+                        <div class="form-group">
+                            <label for="sub-exp-a">Explanation for Option A</label>
+                            <textarea id="sub-exp-a" class="form-control text-area" rows="2" placeholder="Why A wins/loses..." required></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="sub-exp-b">Explanation for Option B</label>
+                            <textarea id="sub-exp-b" class="form-control text-area" rows="2" placeholder="Why B wins/loses..." required></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="sub-exp-c">Explanation for Option C</label>
+                            <textarea id="sub-exp-c" class="form-control text-area" rows="2" placeholder="Why C wins/loses..." required></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="sub-exp-d">Explanation for Option D</label>
+                            <textarea id="sub-exp-d" class="form-control text-area" rows="2" placeholder="Why D wins/loses..." required></textarea>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-lg btn-block" style="margin-top: 24px;">
+                        <i class="fas fa-paper-plane"></i> Submit for Peer Specialist Review
+                    </button>
+                </form>
+            </div>
+        </section>
+
+        <!-- SCREEN 4: SPECIALIST MODERATION DESK -->
+        <section id="specialist-screen" class="screen">
+            <div class="workspace-layout">
+                <!-- Left panel: Pending Submissions Queue -->
+                <aside class="workspace-sidebar" style="width: 350px;">
+                    <div class="sidebar-header">
+                        <button class="btn btn-secondary btn-sm btn-icon" id="spec-back-to-home-btn">
+                            <i class="fas fa-arrow-left"></i> Home
+                        </button>
+                    </div>
+                    <div class="progress-widget card" style="margin: 12px; padding: 12px; text-align: left; align-items: flex-start;">
+                        <h4 class="widget-title" style="margin-bottom: 6px;"><i class="fas fa-id-card text-glow-primary"></i> Specialist Profile</h4>
+                        <div class="spec-profile-summary">
+                            <div>Category Scope: <strong id="spec-profile-cat">All</strong></div>
+                            <div>Moderation Level: <strong id="spec-profile-lvl">Level 1</strong></div>
+                            <div>Specialist XP (stars approved): <strong id="spec-profile-xp">0</strong></div>
+                        </div>
+                    </div>
+                    <div class="filter-box">
+                        <h4 class="card-subtitle"><i class="fas fa-list-check"></i> Pending Review Queue</h4>
+                    </div>
+                    <div class="quest-list-container">
+                        <ul class="quest-list" id="pending-submissions-list">
+                            <!-- Pending submissions injected here -->
+                        </ul>
+                    </div>
+                </aside>
+
+                <!-- Right panel: Moderation Details & Dialogue Workspace -->
+                <section class="workspace-main" id="specialist-workspace-main">
+                    <!-- Default State: Select a submission -->
+                    <div class="no-selection-message" id="spec-empty-state">
+                        <i class="fas fa-envelope-open-text" style="font-size: 3rem; color: var(--text-muted); margin-bottom: 12px;"></i>
+                        <h4>Specialist Moderation Desk</h4>
+                        <p>Select a pending question from the queue list to review, leave feedback notes, make edit changes, or vote to approve.</p>
+                    </div>
+
+                    <!-- Active review panel -->
+                    <div id="spec-active-review-panel" style="display: none; height: 100%; display: flex; flex-direction: column;">
+                        <div class="quest-header-bar" style="margin-bottom: 16px;">
+                            <div class="quest-metadata">
+                                <span class="quest-day" id="spec-topic-tag">SYSTEM DESIGN</span>
+                                <span class="quest-category-pill" id="spec-category-tag">API Design</span>
+                            </div>
+                            <h3 class="quest-title" id="spec-quest-title">Read-Your-Writes Replicas</h3>
+                        </div>
+
+                        <div class="spec-review-grid">
+                            <!-- Left: Review/Edit form -->
+                            <div class="spec-editor-column">
+                                <div class="card spec-editor-card">
+                                    <h4 class="card-subtitle"><i class="fas fa-edit"></i> Edit / Refine Question Data</h4>
+                                    
+                                    <div class="form-group">
+                                        <label for="edit-title">Title</label>
+                                        <input type="text" id="edit-title" class="form-control" style="padding-left:12px;">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="edit-scenario">Scenario Context</label>
+                                        <textarea id="edit-scenario" class="form-control text-area" rows="6"></textarea>
+                                    </div>
+                                    
+                                    <div class="options-inputs-block">
+                                        <div class="form-row">
+                                            <div class="form-group col-6">
+                                                <label for="edit-opt-a">A</label>
+                                                <input type="text" id="edit-opt-a" class="form-control">
+                                            </div>
+                                            <div class="form-group col-6">
+                                                <label for="edit-opt-b">B</label>
+                                                <input type="text" id="edit-opt-b" class="form-control">
+                                            </div>
+                                        </div>
+                                        <div class="form-row">
+                                            <div class="form-group col-6">
+                                                <label for="edit-opt-c">C</label>
+                                                <input type="text" id="edit-opt-c" class="form-control">
+                                            </div>
+                                            <div class="form-group col-6">
+                                                <label for="edit-opt-d">D</label>
+                                                <input type="text" id="edit-opt-d" class="form-control">
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="form-row" style="margin-top: 10px;">
+                                        <div class="form-group col-4">
+                                            <label for="edit-correct">Correct Option</label>
+                                            <select id="edit-correct" class="form-select" style="padding-left:12px;">
+                                                <option value="A">A</option>
+                                                <option value="B">B</option>
+                                                <option value="C">C</option>
+                                                <option value="D">D</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div class="explanations-inputs-block" style="margin-top: 10px;">
+                                        <div class="form-group">
+                                            <label for="edit-exp-a">Explanation A</label>
+                                            <textarea id="edit-exp-a" class="form-control text-area" rows="2"></textarea>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="edit-exp-b">Explanation B</label>
+                                            <textarea id="edit-exp-b" class="form-control text-area" rows="2"></textarea>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="edit-exp-c">Explanation C</label>
+                                            <textarea id="edit-exp-c" class="form-control text-area" rows="2"></textarea>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="edit-exp-d">Explanation D</label>
+                                            <textarea id="edit-exp-d" class="form-control text-area" rows="2"></textarea>
+                                        </div>
+                                    </div>
+
+                                    <div class="form-row" style="margin-top: 16px; gap: 12px;">
+                                        <button class="btn btn-secondary" id="spec-save-edits-btn">
+                                            <i class="fas fa-save"></i> Save Revision
+                                        </button>
+                                        <button class="btn btn-primary" id="spec-approve-btn">
+                                            <i class="fas fa-check-circle"></i> Approve & Publish
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Right: Dialogue, comments thread & cross-review notes -->
+                            <div class="spec-notes-column">
+                                <div class="card spec-notes-card">
+                                    <h4 class="card-subtitle"><i class="fas fa-comments"></i> Cross-Review Notes Thread</h4>
+                                    
+                                    <div class="notes-thread-container" id="notes-thread-container">
+                                        <!-- Review notes list dynamically injected -->
+                                    </div>
+
+                                    <div class="notes-input-box" style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 16px;">
+                                        <div class="form-group">
+                                            <label for="new-note-text">Add Peer Feedback Note</label>
+                                            <textarea id="new-note-text" class="form-control text-area" rows="3" placeholder="Suggest edits, request changes, or point out bugs..."></textarea>
+                                        </div>
+                                        <button class="btn btn-secondary btn-sm" id="spec-post-note-btn">
+                                            <i class="fas fa-comment-dots"></i> Add Note
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </section>
     </main>
+
+    <!-- RATINGS & FEEDBACK OVERLAY MODAL -->
+    <div class="modal-overlay" id="rating-modal">
+        <div class="modal-card card" style="max-width: 450px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-star text-glow-gold"></i> Rate This Question</h3>
+            </div>
+            <div class="modal-body text-center">
+                <p>Support this contributor! Rate the design quality of this question (1 to 5 stars). The author receives coins matching your rating.</p>
+                
+                <div class="stars-selector" id="stars-selector">
+                    <i class="far fa-star rating-star" data-val="1"></i>
+                    <i class="far fa-star rating-star" data-val="2"></i>
+                    <i class="far fa-star rating-star" data-val="3"></i>
+                    <i class="far fa-star rating-star" data-val="4"></i>
+                    <i class="far fa-star rating-star" data-val="5"></i>
+                </div>
+                
+                <div class="form-group" style="margin-top: 20px;">
+                    <label for="rating-feedback-input">Optional Feedback Comments</label>
+                    <textarea id="rating-feedback-input" class="form-control text-area" rows="3" placeholder="What did you like or what could be improved?"></textarea>
+                </div>
+
+                <div class="settings-actions" style="margin-top: 20px;">
+                    <button class="btn btn-secondary" id="skip-rating-btn">Skip</button>
+                    <button class="btn btn-primary" id="submit-rating-btn" disabled>Submit Rating & Earn</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- SETTINGS MODAL (Gemini API Key Configuration) -->
     <div class="modal-overlay" id="settings-modal">

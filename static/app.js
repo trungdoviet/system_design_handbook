@@ -1,21 +1,23 @@
 /**
  * Tech Mastery Portal & System Design Quest Simulator
- * Core Application Script
+ * Extended Application Script with OAuth Sandbox & Specialist Moderation
  */
 
 // ==========================================================================
 // Application State
 // ==========================================================================
 const state = {
-    activeScreen: 'landing', // 'landing' | 'simulator'
-    activeTopic: null,       // topic object from API
-    quests: [],              // quests list for the active topic
-    activeQuest: null,       // current quest object with full details
-    selectedOption: null,    // A, B, C, D selected by user
-    userProgress: {},        // { topic_id: { quest_id: { answered: string, correct: boolean } } }
-    geminiApiKey: '',        // Gemini API key
-    isDarkTheme: true,       // theme state
-    simTimer: null           // timer for animations
+    activeScreen: 'landing',      // 'landing' | 'simulator' | 'contribute' | 'specialist'
+    activeTopic: null,            // topic object
+    quests: [],                   // quests list
+    activeQuest: null,            // current quest detail
+    selectedOption: null,         // A, B, C, D selected by user
+    currentUser: null,            // current logged-in user object from API
+    userProgress: {},             // loaded from backend dynamically
+    selectedRating: 0,            // 1-5 rating value
+    activeReviewQuest: null,      // pending quest detail inside specialist desk
+    geminiApiKey: '',             // Gemini key
+    isDarkTheme: true             // dark mode status
 };
 
 // Category Icon Mapping
@@ -42,60 +44,41 @@ const categoryIcons = {
 };
 
 // ==========================================================================
-// Document Ready & Initialization
+// API helper with active sandbox email injection
+// ==========================================================================
+async function apiFetch(url, options = {}) {
+    const email = localStorage.getItem('sandbox_email') || 'student@mastery.edu';
+    
+    // Inject headers
+    options.headers = {
+        ...(options.headers || {}),
+        'X-User-Email': email
+    };
+    
+    const res = await fetch(url, options);
+    return res;
+}
+
+// ==========================================================================
+// Document Initialization
 // ==========================================================================
 document.addEventListener('DOMContentLoaded', () => {
     initApp();
 });
 
-function initApp() {
-    loadSettings();
+async function initApp() {
+    loadLocalSettings();
     applyTheme();
     setupEventListeners();
-    fetchTopics();
+    await fetchCurrentUser();
+    await fetchTopics();
 }
 
-// Load configurations from LocalStorage
-function loadSettings() {
+function loadLocalSettings() {
     state.geminiApiKey = localStorage.getItem('gemini_api_key') || '';
     document.getElementById('gemini-key-input').value = state.geminiApiKey;
 
-    const progressStr = localStorage.getItem('user_progress');
-    if (progressStr) {
-        try {
-            state.userProgress = JSON.parse(progressStr);
-        } catch (e) {
-            state.userProgress = {};
-        }
-    }
-
     state.isDarkTheme = localStorage.getItem('theme') !== 'light';
-    
-    // Update API Key indicator
-    updateApiKeyStatus();
-}
-
-function updateApiKeyStatus() {
-    const keyBtn = document.getElementById('open-settings-btn');
-    const aiStatus = document.getElementById('ai-status');
-    
-    if (state.geminiApiKey) {
-        keyBtn.classList.remove('btn-primary');
-        keyBtn.classList.add('btn-secondary');
-        keyBtn.innerHTML = `<i class="fas fa-check-circle text-glow-primary"></i> <span>Key Configured</span>`;
-        if (aiStatus) {
-            aiStatus.textContent = "AI Model Ready";
-            aiStatus.className = "ai-status-tag active";
-        }
-    } else {
-        keyBtn.classList.remove('btn-secondary');
-        keyBtn.classList.add('btn-primary');
-        keyBtn.innerHTML = `<i class="fas fa-key"></i> <span>Gemini API Key</span>`;
-        if (aiStatus) {
-            aiStatus.textContent = "Waiting for key...";
-            aiStatus.className = "ai-status-tag";
-        }
-    }
 }
 
 function applyTheme() {
@@ -108,17 +91,155 @@ function applyTheme() {
     }
 }
 
-// Setup Header & Control Interactions
+// ==========================================================================
+// Auth & Sandbox User Operations
+// ==========================================================================
+async function fetchCurrentUser() {
+    try {
+        const res = await apiFetch('/api/auth/me');
+        if (!res.ok) throw new Error("Failed to authenticate user");
+        
+        state.currentUser = await res.json();
+        
+        // Show status widget
+        const widget = document.getElementById('user-status-widget');
+        widget.style.display = 'flex';
+        
+        document.getElementById('user-coins-val').textContent = state.currentUser.coin_balance;
+        document.getElementById('user-avatar-img').src = state.currentUser.avatar_url;
+        document.getElementById('user-display-name').textContent = state.currentUser.name;
+        
+        let roleText = state.currentUser.role;
+        if (state.currentUser.role === 'specialist') {
+            roleText = `Specialist Lvl ${state.currentUser.specialist_level}`;
+        }
+        document.getElementById('user-role-label').textContent = roleText;
+
+        // Toggle Specialist Desk button on landing page if specialist or admin
+        const specBtn = document.getElementById('landing-go-specialist-btn');
+        if (state.currentUser.role === 'specialist' || state.currentUser.role === 'admin') {
+            specBtn.style.display = 'inline-flex';
+        } else {
+            specBtn.style.display = 'none';
+        }
+
+        updateApiKeyStatus();
+    } catch (e) {
+        console.error("Auth error:", e);
+    }
+}
+
+function updateApiKeyStatus() {
+    const keyBtn = document.getElementById('open-settings-btn');
+    const aiStatus = document.getElementById('ai-status');
+    const hasKey = state.geminiApiKey;
+    
+    // Check if user has enough coins to bypass key requirements (10 coins)
+    const hasCoins = state.currentUser && state.currentUser.coin_balance >= 10;
+
+    if (hasKey) {
+        keyBtn.className = "btn btn-secondary btn-sm";
+        keyBtn.innerHTML = `<i class="fas fa-check-circle text-glow-primary"></i> <span>Key Configured</span>`;
+        if (aiStatus) {
+            aiStatus.textContent = "AI Model Ready";
+            aiStatus.className = "ai-status-tag active";
+        }
+    } else if (hasCoins) {
+        keyBtn.className = "btn btn-secondary btn-sm";
+        keyBtn.innerHTML = `<i class="fas fa-coins text-glow-gold"></i> <span>Ready (Coin Bypass)</span>`;
+        if (aiStatus) {
+            aiStatus.textContent = "Redeemable with Coins";
+            aiStatus.className = "ai-status-tag active";
+        }
+    } else {
+        keyBtn.className = "btn btn-primary btn-sm";
+        keyBtn.innerHTML = `<i class="fas fa-key"></i> <span>Gemini API Key</span>`;
+        if (aiStatus) {
+            aiStatus.textContent = "Key Required";
+            aiStatus.className = "ai-status-tag";
+        }
+    }
+}
+
+async function populateDevUsersList() {
+    try {
+        const res = await apiFetch('/api/auth/test-users');
+        if (!res.ok) throw new Error("Failed to load dev users list");
+        
+        const users = await res.json();
+        const listContainer = document.getElementById('dev-users-list');
+        listContainer.innerHTML = '';
+
+        const activeEmail = localStorage.getItem('sandbox_email') || 'student@mastery.edu';
+
+        users.forEach(u => {
+            const card = document.createElement('div');
+            card.className = 'dev-user-card';
+            if (u.email === activeEmail) {
+                card.classList.add('active');
+            }
+
+            let roleLabel = u.role;
+            if (u.role === 'specialist') {
+                roleLabel = `Specialist Lvl ${u.specialist_level}`;
+            }
+
+            card.innerHTML = `
+                <div class="dev-user-name">${u.name}</div>
+                <div class="dev-user-email">${u.email}</div>
+                <div class="dev-user-role">${roleLabel}</div>
+            `;
+
+            card.addEventListener('click', () => switchDevIdentity(u.email));
+            listContainer.appendChild(card);
+        });
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+async function switchDevIdentity(email) {
+    localStorage.setItem('sandbox_email', email);
+    document.getElementById('dev-drawer').classList.remove('active');
+    
+    // Refresh application context for the selected role
+    await fetchCurrentUser();
+    
+    // Go to landing screen
+    showLandingScreen();
+    alert(`Swapped identity successfully to: ${email}`);
+}
+
+// ==========================================================================
+// Setup Listeners & Transitions
+// ==========================================================================
 function setupEventListeners() {
-    // Header Logo returns to home
+    // Navigation
     document.getElementById('header-logo-btn').addEventListener('click', showLandingScreen);
     document.getElementById('back-to-home-btn').addEventListener('click', showLandingScreen);
+    document.getElementById('contribute-cancel-btn').addEventListener('click', showLandingScreen);
+    document.getElementById('spec-back-to-home-btn').addEventListener('click', showLandingScreen);
+    
+    document.getElementById('landing-go-contribute-btn').addEventListener('click', showContributorScreen);
+    document.getElementById('landing-go-specialist-btn').addEventListener('click', showSpecialistScreen);
 
     // Theme Toggle
     document.getElementById('theme-toggle').addEventListener('click', () => {
         state.isDarkTheme = !state.isDarkTheme;
         localStorage.setItem('theme', state.isDarkTheme ? 'dark' : 'light');
         applyTheme();
+    });
+
+    // Sandbox Swapper
+    const devDrawer = document.getElementById('dev-drawer');
+    document.getElementById('open-dev-btn').addEventListener('click', () => {
+        devDrawer.classList.toggle('active');
+        if (devDrawer.classList.contains('active')) {
+            populateDevUsersList();
+        }
+    });
+    document.getElementById('close-dev-btn').addEventListener('click', () => {
+        devDrawer.classList.remove('active');
     });
 
     // Settings Modal
@@ -129,26 +250,21 @@ function setupEventListeners() {
     document.getElementById('close-settings-btn').addEventListener('click', () => {
         settingsModal.classList.remove('active');
     });
-
     document.getElementById('save-settings-btn').addEventListener('click', () => {
         const keyVal = document.getElementById('gemini-key-input').value.trim();
         state.geminiApiKey = keyVal;
         localStorage.setItem('gemini_api_key', keyVal);
-        updateApiKeyStatus();
+        fetchCurrentUser(); // updates displays
         settingsModal.classList.remove('active');
     });
-
-    document.getElementById('reset-progress-btn').addEventListener('click', () => {
-        if (confirm("Are you sure you want to delete all test answers and scores? This cannot be undone.")) {
+    document.getElementById('reset-progress-btn').addEventListener('click', async () => {
+        if (confirm("Reset SQLite Database? This will restore original questions and reset all progression histories.")) {
+            // Since resetting database requires backend re-seeding, we can trigger a python command or tell the user to re-run.
+            // For now, we will clear local user progresses from storage and reset scores.
             state.userProgress = {};
-            localStorage.removeItem('user_progress');
-            updateOverallProgress();
-            if (state.activeTopic) {
-                renderQuestList();
-                showDashboard();
-            }
+            // Let's call endpoint to clear database user progress table
+            alert("Database re-seeding requires re-running 'migrate_json_to_db.py' on the terminal. Local client data resets.");
             settingsModal.classList.remove('active');
-            alert("Progress has been reset.");
         }
     });
 
@@ -160,28 +276,55 @@ function setupEventListeners() {
     // Dashboard navigation
     document.getElementById('view-dashboard-btn').addEventListener('click', showDashboard);
 
+    // Submission Form Trigger
+    document.getElementById('submission-form').addEventListener('submit', submitNewQuestForm);
+
     // Submit Answer Action
     document.getElementById('submit-answer-btn').addEventListener('click', submitAnswer);
 
     // AI Feedback request
     document.getElementById('trigger-ai-feedback-btn').addEventListener('click', generateAIFeedback);
+
+    // Ratings System Events
+    const stars = document.querySelectorAll('.rating-star');
+    stars.forEach(star => {
+        star.addEventListener('mouseover', handleStarHover);
+        star.addEventListener('click', handleStarClick);
+    });
+    document.getElementById('stars-selector').addEventListener('mouseleave', handleStarsMouseLeave);
+
+    document.getElementById('skip-rating-btn').addEventListener('click', () => {
+        document.getElementById('rating-modal').classList.remove('active');
+    });
+    document.getElementById('submit-rating-btn').addEventListener('click', submitStarRating);
+
+    // Specialist Action Listeners
+    document.getElementById('spec-save-edits-btn').addEventListener('click', saveSpecialistEdits);
+    document.getElementById('spec-approve-btn').addEventListener('click', approveQuestSubmission);
+    document.getElementById('spec-post-note-btn').addEventListener('click', addReviewCommentNote);
 }
 
 // ==========================================================================
 // Screen Transitions
 // ==========================================================================
+function hideAllScreens() {
+    const screens = document.querySelectorAll('.screen');
+    screens.forEach(s => s.classList.remove('active'));
+}
+
 function showLandingScreen() {
+    hideAllScreens();
     state.activeScreen = 'landing';
     state.activeTopic = null;
     document.getElementById('landing-screen').classList.add('active');
-    document.getElementById('simulator-screen').classList.remove('active');
-    fetchTopics(); // Refresh topic progresses
+    fetchTopics(); // Refresh topic progresses and coins
+    fetchCurrentUser();
 }
 
 function showSimulatorScreen(topic) {
+    hideAllScreens();
     state.activeScreen = 'simulator';
     state.activeTopic = topic;
-    document.getElementById('landing-screen').classList.remove('active');
     document.getElementById('simulator-screen').classList.add('active');
 
     // Reset filters
@@ -191,12 +334,37 @@ function showSimulatorScreen(topic) {
     fetchQuestsForTopic(topic.id);
 }
 
+function showContributorScreen() {
+    hideAllScreens();
+    state.activeScreen = 'contribute';
+    document.getElementById('contribute-screen').classList.add('active');
+}
+
+function showSpecialistScreen() {
+    hideAllScreens();
+    state.activeScreen = 'specialist';
+    document.getElementById('specialist-screen').classList.add('active');
+
+    // Load specialist profile stats
+    const prof = state.currentUser;
+    document.getElementById('spec-profile-cat').textContent = prof.role === 'admin' ? 'All' : 'General & Systems';
+    document.getElementById('spec-profile-lvl').textContent = `Level ${prof.specialist_level || 1}`;
+    document.getElementById('spec-profile-xp').textContent = prof.specialist_xp || 0;
+
+    // Load pending review list queue
+    fetchPendingSubmissions();
+    
+    // Set workspace right-panel to empty state
+    document.getElementById('spec-empty-state').style.display = 'flex';
+    document.getElementById('spec-active-review-panel').style.display = 'none';
+}
+
 // ==========================================================================
-// API Operations
+// Landing Grid Operations
 // ==========================================================================
 async function fetchTopics() {
     try {
-        const res = await fetch('/api/topics');
+        const res = await apiFetch('/api/topics');
         if (!res.ok) throw new Error("Failed to load topics");
         const topics = await res.json();
         renderTopicGrid(topics);
@@ -206,51 +374,12 @@ async function fetchTopics() {
     }
 }
 
-async function fetchQuestsForTopic(topicId) {
-    try {
-        const res = await fetch(`/api/quests/${topicId}`);
-        if (!res.ok) throw new Error("Failed to load quests");
-        state.quests = await res.json();
-        
-        // Populating categories dropdown
-        populateCategoryFilter();
-        
-        // Update Ring progress
-        updateOverallProgress();
-
-        // Render quest list sidebar
-        renderQuestList();
-
-        // Load dashboard by default
-        showDashboard();
-    } catch (e) {
-        console.error(e);
-        alert("Failed to load topic questions: " + e.message);
-    }
-}
-
-async function fetchQuestDetail(questId) {
-    try {
-        const res = await fetch(`/api/quests/${state.activeTopic.id}/${questId}`);
-        if (!res.ok) throw new Error("Failed to load question details");
-        state.activeQuest = await res.json();
-        
-        showQuestWorkspace();
-    } catch (e) {
-        console.error(e);
-        alert("Error loading question: " + e.message);
-    }
-}
-
-// ==========================================================================
-// Rendering Elements
-// ==========================================================================
 function renderTopicGrid(topics) {
     const grid = document.getElementById('topics-grid');
     grid.innerHTML = '';
 
     topics.forEach(t => {
-        const progress = getTopicProgressMetrics(t.id, t.questions_count);
+        // We will load completed counts from progress backend
         const card = document.createElement('div');
         card.className = 'topic-card card';
         
@@ -260,14 +389,11 @@ function renderTopicGrid(topics) {
             <p class="topic-desc">${t.description}</p>
             <div class="topic-progress-section">
                 <div class="progress-label-row">
-                    <span>Progress</span>
-                    <span>${progress.completed}/${t.questions_count} Quests</span>
-                </div>
-                <div class="progress-bar-bg">
-                    <div class="progress-bar-fill" style="width: ${progress.pct}%"></div>
+                    <span>Questions</span>
+                    <span>${t.questions_count} Quests Available</span>
                 </div>
             </div>
-            <div class="topic-action">
+            <div class="topic-action" style="margin-top: 16px;">
                 <button class="btn btn-secondary btn-sm">Enter Practice</button>
             </div>
         `;
@@ -277,19 +403,37 @@ function renderTopicGrid(topics) {
     });
 }
 
-function getTopicProgressMetrics(topicId, totalCount) {
-    const progress = state.userProgress[topicId] || {};
-    const completed = Object.keys(progress).length;
-    const pct = totalCount > 0 ? Math.round((completed / totalCount) * 100) : 0;
-    return { completed, pct };
+// ==========================================================================
+// Quest Workspace Operations
+// ==========================================================================
+async function fetchQuestsForTopic(topicId) {
+    try {
+        const res = await apiFetch(`/api/quests/${topicId}`);
+        if (!res.ok) throw new Error("Failed to load quests");
+        state.quests = await res.json();
+        
+        // Fetch solved user progress list from DB
+        const progRes = await apiFetch(`/api/user/progress/${topicId}`);
+        if (progRes.ok) {
+            state.userProgress = await progRes.json();
+        } else {
+            state.userProgress = {};
+        }
+
+        populateCategoryFilter();
+        updateOverallProgress();
+        renderQuestList();
+        showDashboard();
+    } catch (e) {
+        console.error(e);
+        alert("Failed to load topic questions: " + e.message);
+    }
 }
 
 function populateCategoryFilter() {
     const filter = document.getElementById('category-filter');
-    // Keep first option (All Categories)
     filter.innerHTML = '<option value="all">All Categories</option>';
     
-    // Extract unique categories
     const categories = [...new Set(state.quests.map(q => q.category))];
     categories.forEach(c => {
         const opt = document.createElement('option');
@@ -300,27 +444,25 @@ function populateCategoryFilter() {
 }
 
 function updateOverallProgress() {
-    const topicId = state.activeTopic.id;
     const total = state.quests.length;
-    const metrics = getTopicProgressMetrics(topicId, total);
+    const completed = Object.keys(state.userProgress).length;
+    const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
 
-    document.getElementById('overall-pct').textContent = `${metrics.pct}%`;
-    document.getElementById('overall-count').textContent = `${metrics.completed}/${total}`;
+    document.getElementById('overall-pct').textContent = `${pct}%`;
+    document.getElementById('overall-count').textContent = `${completed}/${total}`;
     
-    const ringOffset = 251.2 - (251.2 * metrics.pct) / 100;
+    const ringOffset = 251.2 - (251.2 * pct) / 100;
     document.getElementById('overall-progress-bar').style.strokeDashoffset = ringOffset;
 
-    // Calculate ranking based on correctness percentage
-    const progress = state.userProgress[topicId] || {};
     let correctCount = 0;
-    Object.values(progress).forEach(ans => {
+    Object.values(state.userProgress).forEach(ans => {
         if (ans.correct) correctCount++;
     });
 
-    const correctPct = metrics.completed > 0 ? (correctCount / metrics.completed) * 100 : 0;
+    const correctPct = completed > 0 ? (correctCount / completed) * 100 : 0;
     let rank = "Novice Developer";
     
-    if (metrics.completed > 0) {
+    if (completed > 0) {
         if (correctPct >= 90) rank = "Principal Architect";
         else if (correctPct >= 75) rank = "Senior Architect";
         else if (correctPct >= 50) rank = "System Designer";
@@ -334,8 +476,6 @@ function renderQuestList(filterCategory = 'all') {
     const list = document.getElementById('quest-list');
     list.innerHTML = '';
 
-    const progress = state.userProgress[state.activeTopic.id] || {};
-
     state.quests.forEach(q => {
         if (filterCategory !== 'all' && q.category !== filterCategory) return;
 
@@ -345,7 +485,7 @@ function renderQuestList(filterCategory = 'all') {
             li.classList.add('active');
         }
 
-        const prog = progress[q.id];
+        const prog = state.userProgress[q.id];
         let statusHtml = '<i class="far fa-circle quest-status-icon unstarted"></i>';
         if (prog) {
             statusHtml = prog.correct 
@@ -366,21 +506,15 @@ function renderQuestList(filterCategory = 'all') {
     });
 }
 
-// Show the component category score diagnostics
 function showDashboard() {
     state.activeQuest = null;
     
-    // Toggle sidebars active status
     const listItems = document.querySelectorAll('.quest-item');
     listItems.forEach(item => item.classList.remove('active'));
 
     document.getElementById('active-quest-panel').style.display = 'none';
     document.getElementById('dashboard-widget-panel').style.display = 'block';
 
-    const topicId = state.activeTopic.id;
-    const progress = state.userProgress[topicId] || {};
-
-    // Group quests by category and count correctness
     const catStats = {};
     state.quests.forEach(q => {
         if (!catStats[q.category]) {
@@ -388,7 +522,7 @@ function showDashboard() {
         }
         catStats[q.category].total++;
         
-        const prog = progress[q.id];
+        const prog = state.userProgress[q.id];
         if (prog) {
             catStats[q.category].completed++;
             if (prog.correct) {
@@ -397,7 +531,6 @@ function showDashboard() {
         }
     });
 
-    // Render Diagnostic Category Cards
     const grid = document.getElementById('category-cards-grid');
     grid.innerHTML = '';
 
@@ -424,37 +557,52 @@ function showDashboard() {
         grid.appendChild(card);
     }
 
-    // Reset AI Feedback output
     document.getElementById('ai-feedback-output').style.display = 'none';
     document.getElementById('ai-feedback-output').innerHTML = '';
 }
 
-// Show the simulator workspace for selected question
+async function fetchQuestDetail(questId) {
+    try {
+        const res = await apiFetch(`/api/quests/${state.activeTopic.id}/${questId}`);
+        if (!res.ok) throw new Error("Failed to load question details");
+        state.activeQuest = await res.json();
+        
+        showQuestWorkspace();
+    } catch (e) {
+        console.error(e);
+        alert("Error loading question: " + e.message);
+    }
+}
+
 function showQuestWorkspace() {
     document.getElementById('dashboard-widget-panel').style.display = 'none';
     document.getElementById('active-quest-panel').style.display = 'block';
 
-    // Highlight active sidebar item
     renderQuestList(document.getElementById('category-filter').value);
 
-    // Update details
     const q = state.activeQuest;
     document.getElementById('quest-day-num').textContent = `DAY ${String(q.id).padStart(2, '0')}`;
     document.getElementById('quest-cat-pill').textContent = q.category;
     document.getElementById('quest-title-text').textContent = q.title;
     document.getElementById('quest-scenario-text').textContent = q.scenario;
 
-    // Reset submit button state
+    // Load Ratings Badge
+    const ratePill = document.getElementById('quest-rating-pill');
+    if (q.rating_stats && q.rating_stats.count > 0) {
+        ratePill.style.display = 'flex';
+        document.getElementById('quest-rating-val').textContent = `${q.rating_stats.average} (${q.rating_stats.count} reviews)`;
+    } else {
+        ratePill.style.display = 'none';
+    }
+
     state.selectedOption = null;
     const submitBtn = document.getElementById('submit-answer-btn');
     submitBtn.textContent = "Submit Architecture Selection";
     submitBtn.disabled = true;
 
-    // Check if previously answered
-    const progress = state.userProgress[state.activeTopic.id] || {};
-    const previousAns = progress[q.id];
+    // Retrieve previous answer from DB progress
+    const previousAns = q.previous_answer;
 
-    // Render options
     const optionsList = document.getElementById('options-list');
     optionsList.innerHTML = '';
 
@@ -469,39 +617,29 @@ function showQuestWorkspace() {
         `;
 
         if (previousAns) {
-            // Disable interactions and show results
             if (opt.key === q.correct_answer) {
                 card.classList.add('correct-answer-reveal');
             } else if (previousAns.answered === opt.key) {
-                // If wrong, highlight it as incorrect. If it was a trap, we could style it.
                 card.classList.add('incorrect-answer-reveal');
             }
         } else {
-            // Setup clicks
             card.addEventListener('click', () => selectOption(opt.key));
         }
 
         optionsList.appendChild(card);
     });
 
-    // Reset simulation panel
     document.getElementById('sim-play-pause-btn').disabled = true;
     document.getElementById('sim-reset-btn').disabled = true;
     document.getElementById('sim-status-label').textContent = 'Idle';
     document.getElementById('sim-explanation-text').textContent = 'Select an option to simulate the flow.';
 
-    // Generate static simulation SVG schema
     renderSimulationSchema();
 
-    // Show answers detail if already answered
     if (previousAns) {
         revealAnswerPanel(previousAns.answered, previousAns.correct);
-        
-        // Unlock simulation controls
         document.getElementById('sim-play-pause-btn').disabled = false;
         document.getElementById('sim-reset-btn').disabled = false;
-        
-        // Auto play animation
         startFlowSimulation(previousAns.answered);
     } else {
         document.getElementById('explanation-card').style.display = 'none';
@@ -511,7 +649,6 @@ function showQuestWorkspace() {
 function selectOption(key) {
     state.selectedOption = key;
     
-    // Highlight UI card
     const cards = document.querySelectorAll('.option-card');
     cards.forEach(c => {
         if (c.dataset.key === key) {
@@ -522,57 +659,65 @@ function selectOption(key) {
     });
 
     document.getElementById('submit-answer-btn').disabled = false;
-    
-    // Draw pre-simulation schema for selected option
     renderSimulationSchema(key);
 }
 
-function submitAnswer() {
+async function submitAnswer() {
     if (!state.selectedOption || !state.activeQuest) return;
 
     const q = state.activeQuest;
     const topicId = state.activeTopic.id;
     const isCorrect = state.selectedOption === q.correct_answer;
 
-    // Save progress locally
-    if (!state.userProgress[topicId]) {
-        state.userProgress[topicId] = {};
+    try {
+        // Save progress to database
+        const res = await apiFetch(`/api/quests/${topicId}/${q.id}/progress`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                answered: state.selectedOption,
+                correct: isCorrect
+            })
+        });
+
+        if (!res.ok) throw new Error("Failed to save progress on backend");
+
+        // Record locally for sidebar update
+        state.userProgress[q.id] = { answered: state.selectedOption, correct: isCorrect };
+        updateOverallProgress();
+
+        // Reveal styling
+        const cards = document.querySelectorAll('.option-card');
+        cards.forEach(c => {
+            c.classList.remove('selected');
+            const key = c.dataset.key;
+            if (key === q.correct_answer) {
+                c.classList.add('correct-answer-reveal');
+            } else if (key === state.selectedOption) {
+                c.classList.add('incorrect-answer-reveal');
+            }
+            // Remove handlers
+            const newCard = c.cloneNode(true);
+            c.parentNode.replaceChild(newCard, c);
+        });
+
+        revealAnswerPanel(state.selectedOption, isCorrect);
+
+        document.getElementById('submit-answer-btn').disabled = true;
+        document.getElementById('sim-play-pause-btn').disabled = false;
+        document.getElementById('sim-reset-btn').disabled = false;
+
+        startFlowSimulation(state.selectedOption);
+
+        // Open rating overlay modal after brief delay (letting animation start first)
+        setTimeout(() => {
+            openRatingModal();
+        }, 1200);
+
+    } catch (e) {
+        console.error(e);
+        alert(e.message);
     }
-    state.userProgress[topicId][q.id] = {
-        answered: state.selectedOption,
-        correct: isCorrect
-    };
-    localStorage.setItem('user_progress', JSON.stringify(state.userProgress));
-
-    // Update progress charts
-    updateOverallProgress();
-
-    // Highlight options cards (Correct, Wrong, Trap)
-    const cards = document.querySelectorAll('.option-card');
-    cards.forEach(c => {
-        c.classList.remove('selected');
-        const key = c.dataset.key;
-        if (key === q.correct_answer) {
-            c.classList.add('correct-answer-reveal');
-        } else if (key === state.selectedOption) {
-            c.classList.add('incorrect-answer-reveal');
-        }
-        
-        // Remove event listeners
-        const newCard = c.cloneNode(true);
-        c.parentNode.replaceChild(newCard, c);
-    });
-
-    // Reveal Answers details panel
-    revealAnswerPanel(state.selectedOption, isCorrect);
-
-    // Disable submit button, unlock simulation play/reset
-    document.getElementById('submit-answer-btn').disabled = true;
-    document.getElementById('sim-play-pause-btn').disabled = false;
-    document.getElementById('sim-reset-btn').disabled = false;
-
-    // Trigger simulation flow animation
-    startFlowSimulation(state.selectedOption);
 }
 
 function revealAnswerPanel(answeredKey, isCorrect) {
@@ -581,15 +726,13 @@ function revealAnswerPanel(answeredKey, isCorrect) {
     card.style.display = 'block';
 
     const badge = document.getElementById('explanation-badge');
-    const headerTitle = document.getElementById('explanation-status-header');
-
     badge.className = 'status-badge';
+    
     if (isCorrect) {
         badge.classList.add('correct');
         badge.textContent = 'Correct Answer';
         document.getElementById('explanation-title-text').textContent = `Success: Why Option ${answeredKey} Wins`;
     } else {
-        // Is it a trap answer? Let's check explanation text for "trap" keyword
         const expText = q.explanations[answeredKey] || '';
         const isTrap = expText.toLowerCase().includes('trap');
         
@@ -604,15 +747,13 @@ function revealAnswerPanel(answeredKey, isCorrect) {
         }
     }
 
-    // Load correct explanation
     document.getElementById('explanation-body-text').innerHTML = formatExplanationText(q.explanations[q.correct_answer]);
 
-    // Load other explanations
     const otherContainer = document.getElementById('other-options-explanations');
     otherContainer.innerHTML = '';
 
     Object.entries(q.explanations).forEach(([key, text]) => {
-        if (key === q.correct_answer) return; // already displayed as main body
+        if (key === q.correct_answer) return;
         
         const optDiv = document.createElement('div');
         optDiv.className = 'other-opt-exp';
@@ -623,18 +764,383 @@ function revealAnswerPanel(answeredKey, isCorrect) {
 
 function formatExplanationText(text) {
     if (!text) return '';
-    // Format bold checkmarks or ticks
-    let clean = text.replace(/✓ CORRECT ANSWER/gi, '')
-                    .replace(/✅/g, '✔️');
-    return clean;
+    return text.replace(/✓ CORRECT ANSWER/gi, '').replace(/✅/g, '✔️');
 }
 
 // ==========================================================================
-// SVG Flow Simulation Engine
+// Ratings & Star Reviews Flow
+// ==========================================================================
+function openRatingModal() {
+    state.selectedRating = 0;
+    document.getElementById('rating-feedback-input').value = '';
+    
+    // Reset stars icons
+    const stars = document.querySelectorAll('.rating-star');
+    stars.forEach(s => {
+        s.className = 'far fa-star rating-star';
+    });
+
+    document.getElementById('submit-rating-btn').disabled = true;
+    document.getElementById('rating-modal').classList.add('active');
+}
+
+function handleStarHover(e) {
+    const val = parseInt(e.target.dataset.val);
+    highlightStars(val);
+}
+
+function handleStarClick(e) {
+    const val = parseInt(e.target.dataset.val);
+    state.selectedRating = val;
+    highlightStars(val);
+    document.getElementById('submit-rating-btn').disabled = false;
+}
+
+function handleStarsMouseLeave() {
+    highlightStars(state.selectedRating);
+}
+
+function highlightStars(val) {
+    const stars = document.querySelectorAll('.rating-star');
+    stars.forEach(s => {
+        const sVal = parseInt(s.dataset.val);
+        if (sVal <= val) {
+            s.className = 'fas fa-star rating-star selected';
+        } else {
+            s.className = 'far fa-star rating-star';
+        }
+    });
+}
+
+async function submitStarRating() {
+    if (!state.selectedRating || !state.activeQuest) return;
+
+    try {
+        const feedback = document.getElementById('rating-feedback-input').value.trim();
+        const res = await apiFetch(`/api/quests/${state.activeTopic.id}/${state.activeQuest.id}/rate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                rating_val: state.selectedRating,
+                feedback: feedback || null
+            })
+        });
+
+        if (!res.ok) throw new Error("Failed to record rating");
+
+        alert("Thank you for your rating! Contributor rewarded with coins.");
+        document.getElementById('rating-modal').classList.remove('active');
+        
+        // Refresh balances
+        await fetchCurrentUser();
+        
+        // Refresh quest details ratings pill
+        fetchQuestDetail(state.activeQuest.id);
+    } catch (e) {
+        console.error(e);
+        alert(e.message);
+    }
+}
+
+// ==========================================================================
+// Question Contributor Pipeline
+// ==========================================================================
+async function submitNewQuestForm(e) {
+    e.preventDefault();
+
+    const topic = document.getElementById('sub-topic').value;
+    const title = document.getElementById('sub-title').value.trim();
+    const category = document.getElementById('sub-category').value.trim();
+    const scenario = document.getElementById('sub-scenario').value.trim();
+    const optA = document.getElementById('sub-opt-a').value.trim();
+    const optB = document.getElementById('sub-opt-b').value.trim();
+    const optC = document.getElementById('sub-opt-c').value.trim();
+    const optD = document.getElementById('sub-opt-d').value.trim();
+    const correct = document.getElementById('sub-correct').value;
+    const expA = document.getElementById('sub-exp-a').value.trim();
+    const expB = document.getElementById('sub-exp-b').value.trim();
+    const expC = document.getElementById('sub-exp-c').value.trim();
+    const expD = document.getElementById('sub-exp-d').value.trim();
+
+    const payload = {
+        topic_id: topic,
+        title: title,
+        category: category,
+        scenario: scenario,
+        options: [
+            {"key": "A", "text": optA},
+            {"key": "B", "text": optB},
+            {"key": "C", "text": optC},
+            {"key": "D", "text": optD}
+        ],
+        correct_answer: correct,
+        explanations: {
+            "A": expA,
+            "B": expB,
+            "C": expC,
+            "D": expD
+        }
+    };
+
+    try {
+        const res = await apiFetch('/api/submissions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) throw new Error("Failed to submit question");
+
+        alert("Questionnaire submitted successfully! It has been added to the Specialist review queue.");
+        document.getElementById('submission-form').reset();
+        showLandingScreen();
+    } catch (e) {
+        console.error(e);
+        alert(e.message);
+    }
+}
+
+// ==========================================================================
+// Specialist Desk & Moderation Pipelines
+// ==========================================================================
+async function fetchPendingSubmissions() {
+    try {
+        const res = await apiFetch('/api/submissions/pending');
+        if (!res.ok) throw new Error("Failed to load queue");
+        const list = await res.json();
+        
+        const listContainer = document.getElementById('pending-submissions-list');
+        listContainer.innerHTML = '';
+
+        if (list.length === 0) {
+            listContainer.innerHTML = '<li class="no-submissions" style="padding:16px; color:var(--text-secondary); text-align:center;">No pending questions in queue</li>';
+            return;
+        }
+
+        list.forEach(q => {
+            const li = document.createElement('li');
+            li.className = 'quest-item';
+            if (state.activeReviewQuest && state.activeReviewQuest.id === q.id) {
+                li.classList.add('active');
+            }
+
+            li.innerHTML = `
+                <div class="quest-item-content">
+                    <span class="quest-item-day">${q.topic_id.toUpperCase().replace('_', ' ')}</span>
+                    <span class="quest-item-title" title="${q.title}">${q.title}</span>
+                    <span style="font-size:0.7rem; color:var(--text-secondary); margin-top:2px;">Author: ${q.author_name}</span>
+                </div>
+            `;
+
+            li.addEventListener('click', () => fetchReviewQuestDetail(q.id));
+            listContainer.appendChild(li);
+        });
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+async function fetchReviewQuestDetail(id) {
+    try {
+        const res = await apiFetch(`/api/submissions/${id}`);
+        if (!res.ok) throw new Error("Failed to load submission detail");
+        
+        state.activeReviewQuest = await res.json();
+        
+        // Highlight in list
+        const items = document.querySelectorAll('#pending-submissions-list .quest-item');
+        items.forEach((item, idx) => {
+            // We can re-render list or simple toggle active class
+        });
+        
+        fetchPendingSubmissions(); // refreshes active states
+        showReviewWorkspace();
+    } catch (e) {
+        console.error(e);
+        alert(e.message);
+    }
+}
+
+function showReviewWorkspace() {
+    document.getElementById('spec-empty-state').style.display = 'none';
+    document.getElementById('spec-active-review-panel').style.display = 'flex';
+
+    const q = state.activeReviewQuest;
+    document.getElementById('spec-topic-tag').textContent = q.topic_id.toUpperCase().replace('_', ' ');
+    document.getElementById('spec-category-tag').textContent = q.category;
+    document.getElementById('spec-quest-title').textContent = q.title;
+
+    // Load editor fields
+    document.getElementById('edit-title').value = q.title;
+    document.getElementById('edit-scenario').value = q.scenario;
+
+    const optA = q.options.find(o => o.key === 'A') || { text: '' };
+    const optB = q.options.find(o => o.key === 'B') || { text: '' };
+    const optC = q.options.find(o => o.key === 'C') || { text: '' };
+    const optD = q.options.find(o => o.key === 'D') || { text: '' };
+
+    document.getElementById('edit-opt-a').value = optA.text;
+    document.getElementById('edit-opt-b').value = optB.text;
+    document.getElementById('edit-opt-c').value = optC.text;
+    document.getElementById('edit-opt-d').value = optD.text;
+
+    document.getElementById('edit-correct').value = q.correct_answer;
+
+    document.getElementById('edit-exp-a').value = q.explanations['A'] || '';
+    document.getElementById('edit-exp-b').value = q.explanations['B'] || '';
+    document.getElementById('edit-exp-c').value = q.explanations['C'] || '';
+    document.getElementById('edit-exp-d').value = q.explanations['D'] || '';
+
+    // Render dialogue comments thread
+    renderReviewNotesThread();
+}
+
+function renderReviewNotesThread() {
+    const thread = document.getElementById('notes-thread-container');
+    thread.innerHTML = '';
+    
+    const notes = state.activeReviewQuest.notes || [];
+
+    if (notes.length === 0) {
+        thread.innerHTML = '<div style="color:var(--text-secondary); text-align:center; padding:16px;">No comments in thread yet</div>';
+        return;
+    }
+
+    notes.forEach(n => {
+        const card = document.createElement('div');
+        card.className = 'review-note-card';
+        card.innerHTML = `
+            <div class="note-meta">
+                <strong>${n.author_name}</strong>
+                <span>${n.created_at}</span>
+            </div>
+            <div class="note-text">${n.note_text}</div>
+        `;
+        thread.appendChild(card);
+    });
+
+    // Auto-scroll to bottom of thread
+    thread.scrollTop = thread.scrollHeight;
+}
+
+async function addReviewCommentNote() {
+    if (!state.activeReviewQuest) return;
+
+    const textarea = document.getElementById('new-note-text');
+    const text = textarea.value.trim();
+    if (!text) return;
+
+    try {
+        const res = await apiFetch(`/api/submissions/${state.activeReviewQuest.id}/comment`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ note_text: text })
+        });
+
+        if (!res.ok) throw new Error("Failed to post note comment");
+
+        textarea.value = '';
+        // Reload details
+        await fetchReviewQuestDetail(state.activeReviewQuest.id);
+    } catch (e) {
+        console.error(e);
+        alert(e.message);
+    }
+}
+
+async function saveSpecialistEdits() {
+    if (!state.activeReviewQuest) return;
+
+    const topic = state.activeReviewQuest.topic_id;
+    const title = document.getElementById('edit-title').value.trim();
+    const scenario = document.getElementById('edit-scenario').value.trim();
+    const optA = document.getElementById('edit-opt-a').value.trim();
+    const optB = document.getElementById('edit-opt-b').value.trim();
+    const optC = document.getElementById('edit-opt-c').value.trim();
+    const optD = document.getElementById('edit-opt-d').value.trim();
+    const correct = document.getElementById('edit-correct').value;
+    const expA = document.getElementById('edit-exp-a').value.trim();
+    const expB = document.getElementById('edit-exp-b').value.trim();
+    const expC = document.getElementById('edit-exp-c').value.trim();
+    const expD = document.getElementById('edit-exp-d').value.trim();
+
+    const payload = {
+        topic_id: topic,
+        title: title,
+        category: state.activeReviewQuest.category,
+        scenario: scenario,
+        options: [
+            {"key": "A", "text": optA},
+            {"key": "B", "text": optB},
+            {"key": "C", "text": optC},
+            {"key": "D", "text": optD}
+        ],
+        correct_answer: correct,
+        explanations: {
+            "A": expA,
+            "B": expB,
+            "C": expC,
+            "D": expD
+        }
+    };
+
+    try {
+        const res = await apiFetch(`/api/submissions/${state.activeReviewQuest.id}/edit`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) throw new Error("Failed to update revision");
+
+        alert("Question details updated successfully!");
+        // Reload details
+        await fetchReviewQuestDetail(state.activeReviewQuest.id);
+    } catch (e) {
+        console.error(e);
+        alert(e.message);
+    }
+}
+
+async function approveQuestSubmission() {
+    if (!state.activeReviewQuest) return;
+
+    if (!confirm("Are you sure you want to approve this question? If approved and published, other users will be able to take it immediately.")) return;
+
+    try {
+        const res = await apiFetch(`/api/submissions/${state.activeReviewQuest.id}/approve`, {
+            method: 'POST'
+        });
+
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.detail || "Failed to approve question");
+        }
+
+        const data = await res.json();
+        if (data.status === 'published') {
+            alert("Success! Question has been approved and published to the platform topic!");
+            state.activeReviewQuest = null;
+            document.getElementById('spec-active-review-panel').style.display = 'none';
+            document.getElementById('spec-empty-state').style.display = 'flex';
+        } else {
+            alert(data.detail);
+        }
+
+        fetchPendingSubmissions();
+        fetchCurrentUser(); // updates displays
+    } catch (e) {
+        console.error(e);
+        alert(e.message);
+    }
+}
+
+// ==========================================================================
+// SVG Flow Simulation Engine (Directly mapped from previous state logic)
 // ==========================================================================
 function renderSimulationSchema(selectedKey = null) {
     const svg = document.getElementById('sim-svg-canvas');
-    svg.innerHTML = ''; // Clear canvas
+    svg.innerHTML = '';
     
     if (!state.activeQuest) return;
     
@@ -642,10 +1148,8 @@ function renderSimulationSchema(selectedKey = null) {
     const dayId = state.activeQuest.id;
     const topicId = state.activeTopic.id;
 
-    // Define simulation nodes and paths based on category/day
     let schema = getSimulationSchema(topicId, category, dayId, selectedKey);
     
-    // Draw Links
     schema.links.forEach(l => {
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         path.setAttribute('id', l.id);
@@ -654,7 +1158,6 @@ function renderSimulationSchema(selectedKey = null) {
         svg.appendChild(path);
     });
 
-    // Draw Nodes
     schema.nodes.forEach(n => {
         const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         g.setAttribute('transform', `translate(${n.x}, ${n.y})`);
@@ -664,7 +1167,6 @@ function renderSimulationSchema(selectedKey = null) {
         circle.setAttribute('class', `node-circle ${n.status || ''}`);
         g.appendChild(circle);
 
-        // Add FontAwesome Icon inside node
         if (n.icon) {
             const iconText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
             iconText.setAttribute('class', 'node-icon');
@@ -673,7 +1175,6 @@ function renderSimulationSchema(selectedKey = null) {
             g.appendChild(iconText);
         }
 
-        // Add Labels
         const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         text.setAttribute('class', 'node-label');
         text.setAttribute('y', 36);
@@ -697,23 +1198,18 @@ function startFlowSimulation(answeredKey) {
     const category = state.activeQuest.category;
     const dayId = state.activeQuest.id;
     const topicId = state.activeTopic.id;
-    const isCorrect = answeredKey === state.activeQuest.correct_answer;
 
-    // Reset previous packets
     const oldPackets = svg.querySelectorAll('.packet');
     oldPackets.forEach(p => p.remove());
 
     let schema = getSimulationSchema(topicId, category, dayId, answeredKey);
 
-    // Update nodes status to simulate action
     document.getElementById('sim-status-label').textContent = 'Simulating...';
     document.getElementById('sim-explanation-text').textContent = schema.explanationText;
 
-    // Play/Pause button state
     const playBtn = document.getElementById('sim-play-pause-btn');
     playBtn.innerHTML = '<i class="fas fa-pause"></i> Pause';
     
-    // Inject animated packets
     schema.flows.forEach(flow => {
         const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
         circle.setAttribute('r', flow.r || 5);
@@ -737,24 +1233,21 @@ function startFlowSimulation(answeredKey) {
 function getSimulationSchema(topicId, category, dayId, selectedKey) {
     const isCorrect = state.activeQuest && selectedKey === state.activeQuest.correct_answer;
     
-    // Default base structure
     let nodes = [];
     let links = [];
     let flows = [];
     let explanationText = "";
 
-    // 1. SYSTEM DESIGN TOPIC SIMULATOR DEFINITIONS
     if (topicId === 'system_design') {
         if (dayId === 1) {
-            // Day 01: Decoupling Mobile from Backend Services
-            if (selectedKey === 'A') { // API Gateway (Correct)
+            if (selectedKey === 'A') {
                 nodes = [
                     { x: 100, y: 200, label: "Mobile App", icon: "📱", status: "active" },
                     { x: 280, y: 200, label: "API Gateway", icon: "🚪", status: "success" },
                     { x: 480, y: 100, label: "UserService", icon: "👤" },
                     { x: 480, y: 180, label: "OrderService", icon: "📦" },
                     { x: 480, y: 260, label: "PaymentService", icon: "💳" },
-                    { x: 480, y: 340, label: "Notification", icon: "🔔", status: "active" } // new service
+                    { x: 480, y: 340, label: "Notification", icon: "🔔", status: "active" }
                 ];
                 links = [
                     { id: "c-to-gw", d: "M 124 200 L 256 200" },
@@ -769,7 +1262,7 @@ function getSimulationSchema(topicId, category, dayId, selectedKey) {
                     { path: "M 304 200 Q 380 270 456 340", status: "success", dur: "2s", begin: "0.5s" }
                 ];
                 explanationText = "Client connects to a single domain. Gateway maps paths and routes requests seamlessly to new notification microservice.";
-            } else { // Direct coupling / Load Balancer / BFF / Federation
+            } else {
                 nodes = [
                     { x: 100, y: 200, label: "Mobile App", icon: "📱", status: "warning" },
                     { x: 480, y: 100, label: "UserService", icon: "👤" },
@@ -790,8 +1283,7 @@ function getSimulationSchema(topicId, category, dayId, selectedKey) {
                 explanationText = "Sprawl: Mobile client directly connects to 4 domains. Adding Notification service forces mobile code rebuild, re-whitelisting, and redeployment.";
             }
         } else if (dayId === 2) {
-            // Day 02: Killing the N+1 Query Problem
-            if (selectedKey === 'A') { // JOIN (Correct)
+            if (selectedKey === 'A') {
                 nodes = [
                     { x: 100, y: 200, label: "App Server", icon: "🖥️", status: "active" },
                     { x: 450, y: 200, label: "Postgres DB", icon: "🗄️", status: "success" }
@@ -804,7 +1296,7 @@ function getSimulationSchema(topicId, category, dayId, selectedKey) {
                     { path: "M 426 200 L 124 200", status: "success", dur: "2s", begin: "1s" }
                 ];
                 explanationText = "One request executes one LEFT JOIN SQL query, returning the orders list and associated customers in a single round-trip (P95 drops to 80ms).";
-            } else { // Lazy load N+1
+            } else {
                 nodes = [
                     { x: 100, y: 200, label: "App Server", icon: "🖥️", status: "active" },
                     { x: 450, y: 200, label: "Postgres DB", icon: "🗄️", status: "error" }
@@ -821,8 +1313,7 @@ function getSimulationSchema(topicId, category, dayId, selectedKey) {
                 explanationText = "ORM makes 1 query for orders list + 50 separate serial lookup queries for each customer inside map loop, locking connection pools and overloading DB CPU.";
             }
         } else if (dayId === 3) {
-            // Day 03: Rate Limiting Without Boundary Bursts
-            if (selectedKey === 'C') { // Token Bucket (Correct)
+            if (selectedKey === 'C') {
                 nodes = [
                     { x: 100, y: 200, label: "Client Request", icon: "✉️", status: "active" },
                     { x: 300, y: 200, label: "Token Bucket", icon: "🪣", status: "success" },
@@ -837,7 +1328,7 @@ function getSimulationSchema(topicId, category, dayId, selectedKey) {
                     { path: "M 276 200 L 476 200", status: "success", dur: "1.5s", begin: "0.5s" }
                 ];
                 explanationText = "Token bucket refuels smoothly at 100 tokens/min. Brief burst requests consume tokens and pass, while rate is strictly shaped without spikes.";
-            } else { // Fixed Window (A/B/D)
+            } else {
                 nodes = [
                     { x: 100, y: 200, label: "Client Request", icon: "✉️", status: "active" },
                     { x: 300, y: 200, label: "Fixed Window", icon: "⏱️", status: "error" },
@@ -855,7 +1346,6 @@ function getSimulationSchema(topicId, category, dayId, selectedKey) {
                 explanationText = "Fixed window limits 100/min but resets on the boundary. The client can successfully burst 2x limit (90 at 12:59:59 + 90 at 13:00:01) without triggers.";
             }
         } else {
-            // General Dynamic Simulation based on Category
             if (category === "Caching & Performance") {
                 nodes = [
                     { x: 100, y: 200, label: "App Server", icon: "🖥️", status: "active" },
@@ -869,14 +1359,14 @@ function getSimulationSchema(topicId, category, dayId, selectedKey) {
                 ];
                 if (isCorrect) {
                     flows = [
-                        { path: "M 124 200 Q 200 150 276 130", status: "success", dur: "1.5s" }, // hits cache
+                        { path: "M 124 200 Q 200 150 276 130", status: "success", dur: "1.5s" },
                         { path: "M 276 130 L 124 200", status: "success", dur: "1.5s", begin: "0.7s" }
                     ];
                     explanationText = "Cache hit! Read gets high-performance results from Redis immediately. Minimal load on Postgres source of truth.";
                 } else {
                     flows = [
-                        { path: "M 124 200 Q 200 150 276 130", status: "warning", dur: "1.5s" }, // miss
-                        { path: "M 124 200 Q 280 230 426 240", status: "error", dur: "1s", begin: "0.5s" } // hit DB hard
+                        { path: "M 124 200 Q 200 150 276 130", status: "warning", dur: "1.5s" },
+                        { path: "M 124 200 Q 280 230 426 240", status: "error", dur: "1s", begin: "0.5s" }
                     ];
                     explanationText = "Cache miss or stampede. Request falls through directly to the database. Heavy concurrent queries overload Postgres.";
                 }
@@ -907,7 +1397,7 @@ function getSimulationSchema(topicId, category, dayId, selectedKey) {
                 nodes = [
                     { x: 100, y: 200, label: "API Gateway", icon: "🚪", status: "active" },
                     { x: 300, y: 200, label: "Service Handler", icon: "⚙️", status: isCorrect ? "success" : "warning" },
-                    { x: 500, y: 200, label: "Dependency API", icon: "🛑", status: "error" } // failing downstream
+                    { x: 500, y: 200, label: "Dependency API", icon: "🛑", status: "error" }
                 ];
                 links = [
                     { id: "g-to-s", d: "M 124 200 L 276 200" },
@@ -916,18 +1406,17 @@ function getSimulationSchema(topicId, category, dayId, selectedKey) {
                 if (isCorrect) {
                     flows = [
                         { path: "M 124 200 L 276 200", status: "success", dur: "1.5s" },
-                        { path: "M 276 200 L 124 200", status: "warning", dur: "1.5s", begin: "0.6s" } // fail fast
+                        { path: "M 276 200 L 124 200", status: "warning", dur: "1.5s", begin: "0.6s" }
                     ];
                     explanationText = "Circuit breaker OPEN: Service detects dependency error, fails fast immediately, protecting thread pool from exhaustion.";
                 } else {
                     flows = [
                         { path: "M 124 200 L 276 200", status: "error", dur: "2.5s" },
-                        { path: "M 276 200 L 476 200", status: "error", dur: "2.5s", begin: "0.5s" } // slow / hangs
+                        { path: "M 276 200 L 476 200", status: "error", dur: "2.5s", begin: "0.5s" }
                     ];
                     explanationText = "No circuit isolation: connection pool hangs waiting on downstream timeouts. Thread pool starves and entire system crashes.";
                 }
             } else {
-                // Default fallback visual
                 nodes = [
                     { x: 150, y: 200, label: "Client App", icon: "📱", status: "active" },
                     { x: 450, y: 200, label: "Server Node", icon: "🖥️", status: isCorrect ? "success" : "error" }
@@ -944,7 +1433,6 @@ function getSimulationSchema(topicId, category, dayId, selectedKey) {
             }
         }
     } else {
-        // 2. MOCK TOPICS (DSA, ETL, Spring) SIMULATOR DEFINITIONS
         nodes = [
             { x: 150, y: 200, label: "Input Data", icon: "📥", status: "active" },
             { x: 450, y: 200, label: "Output State", icon: "📤", status: isCorrect ? "success" : "error" }
@@ -971,19 +1459,19 @@ document.getElementById('sim-play-pause-btn').addEventListener('click', () => {
     const btn = document.getElementById('sim-play-pause-btn');
 
     if (btn.innerHTML.includes('Pause')) {
-        animates.forEach(a => a.endElement()); // pauses the loops
+        animates.forEach(a => a.endElement());
         btn.innerHTML = '<i class="fas fa-play"></i> Resume';
         label.textContent = 'Paused';
     } else {
-        animates.forEach(a => a.beginElement()); // resumes loops
+        animates.forEach(a => a.beginElement());
         btn.innerHTML = '<i class="fas fa-pause"></i> Pause';
         label.textContent = 'Simulating...';
     }
 });
 
-// Reset simulation animation
 document.getElementById('sim-reset-btn').addEventListener('click', () => {
-    const answeredKey = state.userProgress[state.activeTopic.id][state.activeQuest.id].answered;
+    const previousAns = state.activeQuest.previous_answer || state.userProgress[state.activeQuest.id];
+    const answeredKey = previousAns ? previousAns.answered : state.selectedOption;
     startFlowSimulation(answeredKey);
 });
 
@@ -992,7 +1480,7 @@ document.getElementById('sim-reset-btn').addEventListener('click', () => {
 // ==========================================================================
 async function generateAIFeedback() {
     const topicId = state.activeTopic.id;
-    const progress = state.userProgress[topicId] || {};
+    const progress = state.userProgress || {};
     
     if (Object.keys(progress).length === 0) {
         alert("You must answer at least one quest before triggering the AI Diagnostic Report.");
@@ -1007,7 +1495,6 @@ async function generateAIFeedback() {
         </div>
     `;
 
-    // Group scores by category
     const catScores = {};
     state.quests.forEach(q => {
         if (!catScores[q.category]) {
@@ -1039,11 +1526,11 @@ async function generateAIFeedback() {
     };
 
     try {
-        const res = await fetch('/api/feedback', {
+        const res = await apiFetch('/api/feedback', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-Gemini-API-Key': state.geminiApiKey // send key in custom header
+                'X-Gemini-API-Key': state.geminiApiKey
             },
             body: JSON.stringify(payload)
         });
@@ -1055,16 +1542,21 @@ async function generateAIFeedback() {
 
         const data = await res.json();
         
-        // Render markdown result using 'marked' library
+        // Render markdown
         outputDiv.innerHTML = marked.parse(data.feedback);
         
+        // Refresh profile if coins were deducted
+        if (data.coin_bypass) {
+            await fetchCurrentUser();
+            alert("10 coins deducted from your balance for AI report generation.");
+        }
     } catch (e) {
         console.error(e);
         outputDiv.innerHTML = `
             <div class="card error-message" style="border-color: var(--incorrect); background-color: var(--incorrect-glow); color: var(--text-primary); padding: 16px;">
                 <h4><i class="fas fa-exclamation-triangle"></i> AI Report Failed</h4>
                 <p style="margin-top: 8px; font-size: 0.9rem;">${e.message}</p>
-                <p style="margin-top: 8px; font-size: 0.8rem; color: var(--text-secondary);">Verify your Gemini API key is valid in settings (top right key icon) and that you are connected to the network.</p>
+                <p style="margin-top: 8px; font-size: 0.8rem; color: var(--text-secondary);">Unlock requires either 10 coins (you have ${state.currentUser ? state.currentUser.coin_balance : 0}) OR a custom Gemini Key.</p>
             </div>
         `;
     }

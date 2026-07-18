@@ -44,6 +44,7 @@
     --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
     --glow-primary: 0 0 20px rgba(99, 102, 241, 0.15);
     --glow-correct: 0 0 20px rgba(16, 185, 129, 0.2);
+    --glow-gold: 0 0 15px rgba(245, 158, 11, 0.4);
     
     /* Transitions */
     --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
@@ -138,6 +139,15 @@ a:hover {
     text-shadow: 0 0 10px rgba(99, 102, 241, 0.5);
 }
 
+.text-glow-gold {
+    color: var(--trap);
+    text-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+}
+
+.text-center {
+    text-align: center;
+}
+
 /* ==========================================================================
    Buttons
    ========================================================================== */
@@ -222,6 +232,7 @@ a:hover {
     align-items: center;
     justify-content: space-between;
     z-index: 100;
+    gap: 16px;
 }
 
 .header-logo {
@@ -247,6 +258,136 @@ a:hover {
     display: flex;
     align-items: center;
     gap: 16px;
+}
+
+/* Auth Display Widget */
+.user-status-widget {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    padding: 6px 16px 6px 12px;
+    border-radius: 30px;
+}
+.coins-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-title);
+    font-weight: 700;
+    color: var(--trap);
+    cursor: help;
+}
+.user-profile-badge {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-left: 1px solid var(--border-color);
+    padding-left: 16px;
+}
+.user-profile-badge img {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background-color: var(--border-color);
+}
+.user-profile-info {
+    display: flex;
+    flex-direction: column;
+}
+.user-profile-info #user-display-name {
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+.user-profile-info #user-role-label {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    text-transform: capitalize;
+}
+
+/* Sandbox Dev swapper drawer */
+.dev-drawer {
+    position: fixed;
+    top: 73px;
+    right: -400px;
+    width: 350px;
+    bottom: 0;
+    background-color: var(--bg-secondary);
+    border-left: 1px solid var(--border-color);
+    z-index: 500;
+    padding: 24px;
+    box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
+    transition: right var(--transition-normal);
+    overflow-y: auto;
+}
+.dev-drawer.active {
+    right: 0;
+}
+.dev-drawer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 12px;
+}
+.dev-drawer-header button {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 1.1rem;
+}
+.dev-drawer-help {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 20px;
+    line-height: 1.4;
+}
+.dev-users-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.dev-user-card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 12px;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+.dev-user-card:hover {
+    border-color: var(--primary);
+    background-color: var(--primary-glow);
+}
+.dev-user-card.active {
+    border-color: var(--correct);
+    background-color: var(--correct-glow);
+}
+.dev-user-name {
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+.dev-user-email {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+.dev-user-role {
+    display: inline-block;
+    font-size: 0.65rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background-color: var(--border-color);
+    color: var(--text-secondary);
+    margin-top: 6px;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+.dev-user-card.active .dev-user-role {
+    background-color: var(--correct);
+    color: #ffffff;
 }
 
 /* ==========================================================================
@@ -277,7 +418,7 @@ a:hover {
    ========================================================================== */
 .hero-section {
     max-width: 800px;
-    margin: 40px auto;
+    margin: 30px auto;
     text-align: center;
 }
 .hero-title {
@@ -291,6 +432,12 @@ a:hover {
 .hero-subtitle {
     font-size: 1.15rem;
     color: var(--text-secondary);
+    margin-bottom: 24px;
+}
+.landing-nav-bar {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
 }
 
 .topics-grid {
@@ -688,6 +835,7 @@ a:hover {
     display: flex;
     gap: 12px;
     margin-bottom: 8px;
+    align-items: center;
 }
 .quest-day {
     font-family: var(--font-mono);
@@ -704,6 +852,16 @@ a:hover {
     color: var(--text-secondary);
     padding: 2px 8px;
     border-radius: 4px;
+}
+.quest-rating-pill {
+    font-size: 0.75rem;
+    background-color: var(--trap-glow);
+    color: var(--trap);
+    padding: 2px 8px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
 }
 .quest-title {
     font-size: 1.7rem;
@@ -1024,6 +1182,122 @@ a:hover {
 }
 
 /* ==========================================================================
+   Screen 3: Contributor Desk & Forms
+   ========================================================================== */
+.contribute-workspace {
+    max-width: 900px;
+    width: 100%;
+    margin: 0 auto;
+}
+.workspace-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 12px;
+    margin-bottom: 16px;
+}
+.contribute-desc {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin-bottom: 24px;
+}
+.submission-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+.form-row {
+    display: flex;
+    gap: 16px;
+}
+.col-6 { flex: 1; }
+.col-4 { width: calc(33.33% - 8px); }
+.text-area {
+    font-family: var(--font-body);
+    resize: vertical;
+}
+
+/* ==========================================================================
+   Screen 4: Specialist Moderation Desk
+   ========================================================================== */
+.spec-profile-summary {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.spec-profile-summary strong {
+    color: var(--text-primary);
+}
+
+.spec-review-grid {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 20px;
+    flex: 1;
+    align-items: start;
+}
+.spec-editor-card, .spec-notes-card {
+    padding: 20px;
+    max-height: 75vh;
+    overflow-y: auto;
+}
+
+/* Peer notes bubble thread */
+.notes-thread-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 8px;
+}
+.review-note-card {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+}
+.note-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+.note-meta strong {
+    color: var(--primary);
+}
+.note-text {
+    line-height: 1.45;
+}
+
+/* Stars selector widgets */
+.stars-selector {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin: 16px 0;
+}
+.rating-star {
+    font-size: 2.2rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: transform var(--transition-fast), color var(--transition-fast);
+}
+.rating-star:hover {
+    transform: scale(1.15);
+    color: var(--trap);
+}
+.rating-star.selected {
+    color: var(--trap);
+    text-shadow: 0 0 10px rgba(245, 158, 11, 0.4);
+}
+
+/* ==========================================================================
    Modals & Overlay
    ========================================================================== */
 .modal-overlay {
@@ -1165,5 +1439,8 @@ a:hover {
     }
     .app-header {
         padding: 12px 16px;
+    }
+    .spec-review-grid {
+        grid-template-columns: 1fr;
     }
 }

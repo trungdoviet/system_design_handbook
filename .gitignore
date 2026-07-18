@@ -8,3 +8,7 @@ ENV/
 .idea/
 .vscode/
 .DS_Store
+portal.db
+*.db
+*.sqlite
+
