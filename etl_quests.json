@@ -91,5 +91,222 @@
       "C": "Snowflake does NOT enforce primary key uniqueness constraints during inserts; constraints are only metadata declarations.",
       "D": "Correct. Both patterns (Delete-Insert for time-series partitions, MERGE for upserts) are standard industry patterns to guarantee idempotency in warehouse loading."
     }
+  },
+  {
+    "id": 4,
+    "title": "Scaling Real-time Database Extraction via Change Data Capture (CDC)",
+    "category": "Data Extraction",
+    "scenario": "You are designing an ETL pipeline to replicate a production PostgreSQL transaction database (50 million updates daily) to a Snowflake warehouse. The DBA forbids running direct SELECT queries on modified_at columns during business hours because it causes lock contention and degrades primary server throughput. What is the most resilient and non-intrusive extraction pattern?",
+    "options": [
+      {
+        "key": "A",
+        "text": "Execute hourly SELECT queries using a read replica to offload query load from the primary database instance."
+      },
+      {
+        "key": "B",
+        "text": "Implement Trigger-Based CDC — insert modified rows into a shadow audit table inside the database, and poll the shadow table from ETL workers."
+      },
+      {
+        "key": "C",
+        "text": "Deploy Log-Based CDC (e.g., using Debezium) — stream raw WAL (Write-Ahead Log) changes asynchronously via Kafka Connect directly to Snowflake."
+      },
+      {
+        "key": "D",
+        "text": "Split the primary table into monthly partition tables and run full partition dumps sequentially at midnight."
+      }
+    ],
+    "correct_answer": "C",
+    "explanations": {
+      "A": "Read replicas solve read contention but require polling which still causes replication lag and does not track intermediate states (deletes or multiple edits to the same row between poll cycles).",
+      "B": "Database triggers add write amplification to the transaction log, slowing down primary database writes during peak operations.",
+      "C": "Correct. Log-based CDC reads the write-ahead log (WAL) directly from disk asynchronously. It places zero lock overhead on active database tables, captures all changes (including hard deletes and intermediate updates), and supports sub-second extraction streaming.",
+      "D": "Monthly partitions don't solve real-time replication needs, and full partition dumps are extremely network/IO intensive."
+    }
+  },
+  {
+    "id": 5,
+    "title": "Rigorous Source-to-Target Data Reconciliation",
+    "category": "ETL Testing & Quality",
+    "scenario": "Your company's financial ETL pipeline processes 200 million transaction logs from payment gateways into an analytical database daily. During audit reviews, minor balance discrepancies are detected. You are tasked with implementing a data reconciliation test suite to verify completeness and correctness. Which strategy is most reliable and cost-effective for detecting any silent data loss?",
+    "options": [
+      {
+        "key": "A",
+        "text": "Row Count Validation — compare the total count of rows in the source file against the total count in the target table on every load."
+      },
+      {
+        "key": "B",
+        "text": "Full Table Checksum (MD5/SHA256) — export both tables to CSV, calculate their MD5 hashes, and compare."
+      },
+      {
+        "key": "C",
+        "text": "Multi-Metric Aggregate Comparison — reconcile the record counts, group-by transaction type counts, and sum of total transaction amounts across both source and target."
+      },
+      {
+        "key": "D",
+        "text": "Spot-checking — pick a random sample of 1,000 transactions daily and perform cell-by-cell validation."
+      }
+    ],
+    "correct_answer": "C",
+    "explanations": {
+      "A": "Row count validation is a basic check. It fails to detect when values inside columns are corrupted or when row counts match but rows are completely different (e.g. duplicate rows offset missing rows).",
+      "B": "Full table checksums are computationally infeasible at 200M rows daily; exporting and hashing would overwhelm the network and take hours.",
+      "C": "Correct. Comparing record counts ensures completeness; comparing key categorical group-by counts ensures consistency across categories; and verifying mathematical aggregates (e.g., sum of payments) ensures data value correctness without scanning entire raw datasets cell-by-cell.",
+      "D": "Spot-checking is statistics-based but will easily miss sparse, silent data corruptions or edge case losses."
+    }
+  },
+  {
+    "id": 6,
+    "title": "Graceful Handling of Schema Evolution in Ingestion Lakes",
+    "category": "Data Ingestion",
+    "scenario": "Your data lake ingests CSV/JSON files from multiple third-party API suppliers into Amazon S3. A supplier changes their API response structure (e.g. renames a field from user_zipcode to postal_code and changes it from integer to string). Your downstream Apache Spark parser crashes. How should you design the ingestion schema guardrails to prevent system crashes?",
+    "options": [
+      {
+        "key": "A",
+        "text": "Hardcode strict schema models inside the Spark parser; reject any files that do not match the expected schema exactly."
+      },
+      {
+        "key": "B",
+        "text": "Implement Schema-on-Read with a Schema Registry (e.g. AWS Glue Schema Registry). Store raw files in an immutable landing zone, detect changes via schema auto-drift policies, and alert operators while preserving query compatibility."
+      },
+      {
+        "key": "C",
+        "text": "Request all partners to sign a strict API version contract and block their uploads if they modify fields without a 3-month warning."
+      },
+      {
+        "key": "D",
+        "text": "Convert all incoming payloads to key-value string columns inside a relational database to bypass type constraints."
+      }
+    ],
+    "correct_answer": "B",
+    "explanations": {
+      "A": "Strict rejects stop the pipeline and require manual developer intervention every time a supplier shifts fields, leading to SLA breaches.",
+      "B": "Correct. Schema-on-read decouples ingestion from transformation. Storing raw data in a landing zone (raw S3 bucket) prevents data loss. Auto-detecting schema modifications via registries allows you to track mutations (schema evolution) and trigger alerts while your pipeline continues parsing known structures safely.",
+      "C": "API versioning contracts are excellent for organization boundaries but fail in practice due to human error and third-party updates.",
+      "D": "Converting everything to key-value string columns defeats the purpose of analytical databases, turning queries into slow string-parsing calculations."
+    }
+  },
+  {
+    "id": 7,
+    "title": "Resolving Partition Skew in Distributed Transformations",
+    "category": "Performance Tuning",
+    "scenario": "You run a Spark batch ETL job joining a 5TB clickstream_events table with a 50GB users table, joined on tenant_id. One tenant (a massive enterprise client) represents 70% of all clickstream rows. The join hangs, and executors running the partition corresponding to this massive tenant crash with OutOfMemory (OOM) errors. How do you resolve this join skew?",
+    "options": [
+      {
+        "key": "A",
+        "text": "Increase the number of Spark partitions (spark.sql.shuffle.partitions = 2000) to spread the data across more executors."
+      },
+      {
+        "key": "B",
+        "text": "Broadcast join the users table since it is only 50GB, avoiding partition distribution entirely."
+      },
+      {
+        "key": "C",
+        "text": "Implement Key Salting — append a random integer (e.g. 1 to N) to the tenant_id of the clickstream table, and replicate each user row N times with corresponding salt suffixes before joining."
+      },
+      {
+        "key": "D",
+        "text": "Filter out the enterprise tenant's clickstream rows from the primary join, run it on a separate cluster, and union the outputs."
+      }
+    ],
+    "correct_answer": "C",
+    "explanations": {
+      "A": "Increasing partition count does not help because all rows matching the exact same join key (tenant_id) will still end up in the exact same partition, resulting in the same skewed execution.",
+      "B": "50GB is too large to fit into standard driver and executor memories for broadcasting; broadcasting 50GB will cause heavy memory overhead and crashes.",
+      "C": "Correct. Key salting breaks the single giant hot key into N smaller, distinct keys (e.g. tenant_123_1, tenant_123_2), dispersing the enterprise client's clickstream rows evenly across N partition executors. Replicating the user row N times ensures the join matches correctly.",
+      "D": "Split-joins are hard to maintain, double your infrastructure cost, and require hardcoding specific tenant IDs in code."
+    }
+  },
+  {
+    "id": 8,
+    "title": "Efficient Deduplication of High-Volume Ingested Data",
+    "category": "Data Transformation",
+    "scenario": "You are loading web traffic click events (1 billion events daily) into a staging warehouse. The source system has at-least-once delivery guarantees, introducing ~1.5% duplicate records. The events have a unique event_id and a timestamp. What is the most cost-efficient deduplication strategy inside a cloud data warehouse?",
+    "options": [
+      {
+        "key": "A",
+        "text": "Run SELECT DISTINCT * on the entire target table before every new report run to ensure clean views."
+      },
+      {
+        "key": "B",
+        "text": "Use a window function: ROW_NUMBER() OVER (PARTITION BY event_id ORDER BY timestamp DESC) in a daily batch pipeline, selecting only row number 1, and write results back."
+      },
+      {
+        "key": "C",
+        "text": "Put a primary key constraint on event_id on the target table, and use standard SQL INSERT commands."
+      },
+      {
+        "key": "D",
+        "text": "Set up a Redis hash set of all event_id keys seen in the last 30 days, and query Redis before pushing each event."
+      }
+    ],
+    "correct_answer": "B",
+    "explanations": {
+      "A": "Running SELECT DISTINCT * across billions of records on every report run is extremely expensive, resource-heavy, and slows down analytics.",
+      "B": "Correct. Executing a daily partition-scoped window function deduplicates records in batch efficiently using the warehouse's columnar compute engine, writing clean rows to the analytical table once.",
+      "C": "Cloud data warehouses (like Snowflake or BigQuery) do not enforce primary key constraints during insertions to preserve high-throughput loading; duplicate rows will write successfully.",
+      "D": "Storing 30 days of event IDs (30 billion keys) in Redis is extremely expensive in RAM cost and introduces a network lookup bottleneck for every single write."
+    }
+  },
+  {
+    "id": 9,
+    "title": "PII Masking and Compliance in Analytical Lakes",
+    "category": "Data Compliance",
+    "scenario": "You are designing an ETL pipeline to move client checkout logs from active servers to an analytical S3 bucket. The data contains PII (e.g. raw credit card numbers, emails, customer names). Compliance teams mandate that PII must be protected before landing in S3, while data analysts still need to track returning customers across checkouts. What masking technique should you implement?",
+    "options": [
+      {
+        "key": "A",
+        "text": "Symmetric Encryption — encrypt PII using an AES key stored in AWS KMS; analysts decrypt keys when querying."
+      },
+      {
+        "key": "B",
+        "text": "Hash-based Pseudonymization with Salt — replace names and emails with a SHA-256 hash combined with a secret salt key, and completely delete or mask credit card fields."
+      },
+      {
+        "key": "C",
+        "text": "Access Control Policies (IAM) — restrict S3 bucket access to data analysts; keep PII in plaintext."
+      },
+      {
+        "key": "D",
+        "text": "Dynamic Data Masking — store files in plaintext and apply masking policies in the visualization tools."
+      }
+    ],
+    "correct_answer": "B",
+    "explanations": {
+      "A": "Encrypting everything still leaves PII accessible if KMS keys are shared, and decrypting large datasets during analysis spikes query latency.",
+      "B": "Correct. Hashing names/emails with a secret salt pseudonymizes the records. It allows analysts to join and track recurring users (since identical emails map to identical hash strings) without exposing the actual identity. Deleting credit cards ensures PCI-DSS compliance.",
+      "C": "Plaintext storage violates GDPR compliance; storage-level access controls do not prevent insider threats or accidental exposures.",
+      "D": "Plaintext files inside S3 can still be read by anyone with raw bucket access, bypassing frontend visualization controls."
+    }
+  },
+  {
+    "id": 10,
+    "title": "Orchestrating Resilient Pipeline Backfills",
+    "category": "Data Orchestration",
+    "scenario": "You discover a bug in your conversion rate calculation logic that has run in production for the past 15 days. You have fixed the code in Apache Airflow. You need to re-run the pipeline for these 15 days (backfilling) to correct the historical metrics in the reporting tables. How do you ensure the backfill executes correctly without causing double-counting?",
+    "options": [
+      {
+        "key": "A",
+        "text": "Trigger 15 concurrent Airflow DAG runs manually and let the warehouse handle concurrent updates automatically."
+      },
+      {
+        "key": "B",
+        "text": "Ensure your DAG tasks are completely idempotent (using write-overwrite partition commands based on the task's execution date), and execute the Airflow backfill CLI command for the date range."
+      },
+      {
+        "key": "C",
+        "text": "Drop the entire reporting table, run the Airflow scheduler from scratch starting 15 days ago, and let the pipeline rebuild."
+      },
+      {
+        "key": "D",
+        "text": "Write a custom Python script to query the database, calculate differences, and write delta adjustments."
+      }
+    ],
+    "correct_answer": "B",
+    "explanations": {
+      "A": "Triggering concurrent DAGs without idempotency leads to race conditions, locks, and corrupted data if multiple instances write to the same table.",
+      "B": "Correct. Idempotency is crucial for backfills: executing the same task multiple times with the same input date must yield the same output state. Overwriting the specific daily partition ensures that retries or re-runs clean out the old bad data and write correct data without duplicates.",
+      "C": "Dropping the table destroys all historical data (e.g. older than 15 days), which would take days or weeks to rebuild.",
+      "D": "Delta adjustment scripts are complex, error-prone, and fragile compared to a clean overwrite run."
+    }
   }
 ]
