@@ -201,10 +201,36 @@
                                 </div>
 
                                 <!-- Options Container -->
-                                <div class="options-container">
+                                <div class="options-container" id="mc-options-container">
                                     <h4 class="card-subtitle"><i class="fas fa-tasks"></i> Architectural Options</h4>
                                     <div class="options-list" id="options-list">
                                         <!-- Injected by JS -->
+                                    </div>
+                                </div>
+
+                                <!-- Coding Workspace Container (Interactive Editor) -->
+                                <div class="options-container" id="coding-workspace-container" style="display: none;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                        <h4 class="card-subtitle" style="margin-bottom: 0;"><i class="fas fa-code"></i> Coding Workspace</h4>
+                                        <div class="lang-selector-box">
+                                            <label for="code-lang-select" style="font-size: 0.75rem; color: var(--text-secondary); margin-right: 6px;">Language:</label>
+                                            <select id="code-lang-select" class="form-select" style="display: inline-block; width: auto; padding: 2px 24px 2px 8px; font-size: 0.75rem;">
+                                                <option value="python">Python 3</option>
+                                                <option value="java">Java (JDK)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="code-editor-wrapper" style="border: 1px solid var(--border-color); border-radius: 8px; background-color: #0f0f16; overflow: hidden; margin-bottom: 12px;">
+                                        <textarea id="code-editor-area" style="width: 100%; height: 280px; background-color: transparent; border: none; outline: none; color: #57ffb4; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; padding: 12px; resize: vertical; line-height: 1.5;" spellcheck="false"></textarea>
+                                    </div>
+                                    
+                                    <!-- Test Results Console -->
+                                    <div class="console-output card" id="console-output-box" style="display: none; background-color: #050508; border-color: rgba(255,255,255,0.05); padding: 12px;">
+                                        <h5 style="margin-top: 0; font-size: 0.8rem; text-transform: uppercase; color: var(--text-secondary); display: flex; align-items: center; justify-content: space-between;">
+                                            <span>Console Output</span>
+                                            <span class="status-badge" id="console-status-badge" style="font-size: 0.65rem;">Passed</span>
+                                        </h5>
+                                        <pre id="console-output-text" style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; white-space: pre-wrap; color: var(--text-secondary); margin: 0; max-height: 120px; overflow-y: auto;"></pre>
                                     </div>
                                 </div>
 
@@ -217,8 +243,8 @@
                             </div>
 
                             <div class="quest-simulation-column">
-                                <!-- Simulation Panel -->
-                                <div class="simulation-card card">
+                                <!-- Simulation Panel (Multiple Choice) -->
+                                <div class="simulation-card card" id="mc-simulation-card">
                                     <div class="sim-header">
                                         <h4 class="card-subtitle"><i class="fas fa-project-diagram"></i> Architecture Flow Simulator</h4>
                                         <div class="sim-status" id="sim-status-label">Idle</div>
@@ -239,6 +265,21 @@
                                             <i class="fas fa-redo"></i> Reset
                                         </button>
                                         <span class="sim-explanation" id="sim-explanation-text">Select an option to simulate the architectural behavior.</span>
+                                    </div>
+                                </div>
+
+                                <!-- Coding Tests Panel -->
+                                <div class="simulation-card card" id="coding-tests-panel" style="display: none; background-color: var(--bg-secondary); border-color: rgba(255,255,255,0.05);">
+                                    <div class="sim-header">
+                                        <h4 class="card-subtitle"><i class="fas fa-vial"></i> Code Test Cases</h4>
+                                        <div class="sim-status" id="coding-status-label" style="color: var(--text-secondary); font-size: 0.8rem;">Ready</div>
+                                    </div>
+                                    <div class="test-cases-list" id="test-cases-list" style="padding: 16px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; max-height: 320px;">
+                                        <!-- Test case status lines injected here -->
+                                        <div style="color: var(--text-secondary); font-size: 0.85rem; text-align: center; margin-top: 40px;">
+                                            <i class="fas fa-terminal" style="font-size: 2rem; color: rgba(255,255,255,0.1); margin-bottom: 10px; display: block;"></i>
+                                            Write your solution and click <strong>Run & Submit Code</strong> to run the local test suite.
+                                        </div>
                                     </div>
                                 </div>
 

@@ -7,6 +7,9 @@ import urllib.request
 import urllib.error
 import json
 import os
+import tempfile
+import subprocess
+import ast
 
 from sqlalchemy.orm import Session
 from database import get_db, User, SpecialistProfile, Quest, UserProgress, Rating, ReviewNote, CoinTransaction
@@ -99,6 +102,10 @@ class AuthRegisterPayload(BaseModel):
     name: str
     oauth_provider: Optional[str] = None
     oauth_id: Optional[str] = None
+
+class QuestRunPayload(BaseModel):
+    language: str
+    code: str
 
 class QuestProgressPayload(BaseModel):
     answered: str
@@ -267,6 +274,196 @@ async def get_quest_detail(topic_id: str, quest_id: int, db: Session = Depends(g
             "average": round(avg_rating, 1)
         }
     }
+
+# Helper to execute Python solutions safely locally
+def execute_python_code(user_code: str, func_name: str, test_cases: list) -> dict:
+    driver_template = """
+import sys
+import json
+import ast
+
+# USER CODE
+{user_code}
+
+# TEST SUITE
+func_name = "{func_name}"
+test_cases = {test_cases}
+
+passed = True
+details = []
+
+for idx, tc in enumerate(test_cases):
+    try:
+        args = ast.literal_eval(tc["input"])
+        expected = ast.literal_eval(tc["output"])
+        
+        # Locate solution object or function
+        if 'Solution' in globals():
+            sol = Solution()
+            func = getattr(sol, func_name, None)
+        else:
+            func = globals().get(func_name, None)
+            
+        if not func:
+            raise Exception(f"Function/Method '{{func_name}}' not found in Solution class or global namespace.")
+        
+        # Call the user function:
+        if isinstance(args, tuple):
+            result = func(*args)
+        else:
+            result = func(args)
+            
+        # Normalise list/tuple comparison
+        if isinstance(result, tuple):
+            result = list(result)
+        if isinstance(expected, tuple):
+            expected = list(expected)
+            
+        if result == expected:
+            details.append({{"test_case": idx + 1, "status": "passed", "input": tc["input"], "expected": tc["output"], "actual": str(result)}})
+        else:
+            passed = False
+            details.append({{"test_case": idx + 1, "status": "failed", "input": tc["input"], "expected": tc["output"], "actual": str(result)}})
+            
+    except Exception as ex:
+        passed = False
+        details.append({{"test_case": idx + 1, "status": "error", "input": tc["input"], "expected": tc["output"], "actual": str(ex)}})
+
+print(json.dumps({{"passed": passed, "details": details}}))
+"""
+    full_code = driver_template.format(
+        user_code=user_code,
+        func_name=func_name,
+        test_cases=repr(test_cases)
+    )
+    
+    with tempfile.NamedTemporaryFile(suffix=".py", mode="w", delete=False, encoding="utf-8") as temp_file:
+        temp_file.write(full_code)
+        temp_file_name = temp_file.name
+        
+    try:
+        res = subprocess.run(
+            ["python", temp_file_name],
+            capture_output=True,
+            text=True,
+            timeout=3.0
+        )
+        if res.returncode != 0:
+            err_msg = res.stderr or res.stdout
+            return {
+                "passed": False,
+                "error": err_msg,
+                "details": [{"status": "error", "actual": err_msg}]
+            }
+        output_json = json.loads(res.stdout.strip())
+        return output_json
+    except subprocess.TimeoutExpired:
+        return {
+            "passed": False,
+            "error": "Time Limit Exceeded (3.0 seconds). Check for infinite loops in your code!",
+            "details": [{"status": "error", "actual": "Timeout Expired"}]
+        }
+    except Exception as e:
+        return {
+            "passed": False,
+            "error": str(e),
+            "details": [{"status": "error", "actual": str(e)}]
+        }
+    finally:
+        try:
+            os.remove(temp_file_name)
+        except:
+            pass
+
+# Helper to execute Java solutions safely locally
+def execute_java_code(user_code: str, func_name: str, java_driver: str) -> dict:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        solution_file_path = os.path.join(temp_dir, "Solution.java")
+        with open(solution_file_path, "w", encoding="utf-8") as f:
+            f.write(user_code)
+            
+        main_file_path = os.path.join(temp_dir, "Main.java")
+        with open(main_file_path, "w", encoding="utf-8") as f:
+            f.write(java_driver)
+            
+        try:
+            res_compile = subprocess.run(
+                ["javac", "Solution.java", "Main.java"],
+                cwd=temp_dir,
+                capture_output=True,
+                text=True,
+                timeout=5.0
+            )
+            if res_compile.returncode != 0:
+                err_msg = res_compile.stderr or res_compile.stdout
+                return {
+                    "passed": False,
+                    "error": "Java Compilation Error:\n" + err_msg,
+                    "details": [{"status": "error", "actual": err_msg}]
+                }
+                
+            res_run = subprocess.run(
+                ["java", "Main"],
+                cwd=temp_dir,
+                capture_output=True,
+                text=True,
+                timeout=3.0
+            )
+            if res_run.returncode != 0:
+                err_msg = res_run.stderr or res_run.stdout
+                return {
+                    "passed": False,
+                    "error": "Java Runtime Error:\n" + err_msg,
+                    "details": [{"status": "error", "actual": err_msg}]
+                }
+                
+            stdout_str = res_run.stdout.strip()
+            return json.loads(stdout_str)
+        except FileNotFoundError:
+            return {
+                "passed": False,
+                "error": "Java Compiler (javac) was not found on this system path.\nTo write Java, please verify JDK installation, or switch to Python!",
+                "details": [{"status": "error", "actual": "javac not found"}]
+            }
+        except subprocess.TimeoutExpired:
+            return {
+                "passed": False,
+                "error": "Time Limit Exceeded (3.0 seconds). Check for infinite loops in your code!",
+                "details": [{"status": "error", "actual": "Timeout Expired"}]
+            }
+        except Exception as e:
+            return {
+                "passed": False,
+                "error": str(e),
+                "details": [{"status": "error", "actual": str(e)}]
+            }
+
+@app.post("/api/quests/{topic_id}/{quest_id}/run")
+async def run_coding_solution(topic_id: str, quest_id: int, payload: QuestRunPayload, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    q = db.query(Quest).filter(Quest.id == quest_id).first()
+    if not q:
+        raise HTTPException(status_code=404, detail="Question not found.")
+        
+    try:
+        options = json.loads(q.options)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid question type (not a coding question).")
+        
+    if not options.get("is_coding"):
+        raise HTTPException(status_code=400, detail="This question does not support coding solutions.")
+        
+    func_name = options.get("func_name", "")
+    test_cases = options.get("test_cases", [])
+    java_driver = options.get("java_driver", "")
+    
+    if payload.language == "python":
+        res = execute_python_code(payload.code, func_name, test_cases)
+    elif payload.language == "java":
+        res = execute_java_code(payload.code, func_name, java_driver)
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported language.")
+        
+    return res
 
 # Save user progress on completing a question
 @app.post("/api/quests/{topic_id}/{quest_id}/progress")

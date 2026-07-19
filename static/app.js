@@ -744,54 +744,139 @@ function showQuestWorkspace() {
         ratePill.style.display = 'none';
     }
 
-    state.selectedOption = null;
-    const submitBtn = document.getElementById('submit-answer-btn');
-    submitBtn.textContent = "Submit Architecture Selection";
-    submitBtn.disabled = true;
-
-    // Retrieve previous answer from DB progress
     const previousAns = q.previous_answer;
+    const submitBtn = document.getElementById('submit-answer-btn');
 
-    const optionsList = document.getElementById('options-list');
-    optionsList.innerHTML = '';
+    // Hide console output by default
+    document.getElementById('console-output-box').style.display = 'none';
 
-    q.options.forEach(opt => {
-        const card = document.createElement('div');
-        card.className = 'option-card';
-        card.dataset.key = opt.key;
+    if (q.correct_answer === "CODING") {
+        document.getElementById('mc-options-container').style.display = 'none';
+        document.getElementById('coding-workspace-container').style.display = 'block';
+        document.getElementById('mc-simulation-card').style.display = 'none';
+        document.getElementById('coding-tests-panel').style.display = 'block';
 
-        card.innerHTML = `
-            <div class="option-letter">${opt.key}</div>
-            <div class="option-text">${opt.text}</div>
-        `;
+        submitBtn.textContent = "Run & Submit Code";
+        submitBtn.disabled = false;
 
-        if (previousAns) {
-            if (opt.key === q.correct_answer) {
-                card.classList.add('correct-answer-reveal');
-            } else if (previousAns.answered === opt.key) {
-                card.classList.add('incorrect-answer-reveal');
-            }
-        } else {
-            card.addEventListener('click', () => selectOption(opt.key));
+        // Populate templates and values
+        const langSelect = document.getElementById('code-lang-select');
+        const codeArea = document.getElementById('code-editor-area');
+        
+        let initialLang = "python";
+        let initialCode = "";
+        
+        try {
+            // Attempt to parse options which is already parsed as object
+            const opts = q.options;
+            initialCode = opts.templates ? opts.templates.python : "";
+        } catch(e) {
+            console.error(e);
         }
 
-        optionsList.appendChild(card);
-    });
+        if (previousAns) {
+            try {
+                const parsedAns = JSON.parse(previousAns.answered);
+                initialLang = parsedAns.language || "python";
+                initialCode = parsedAns.code || "";
+            } catch(e) {
+                console.error("Failed to parse previous code", e);
+            }
+        }
 
-    document.getElementById('sim-play-pause-btn').disabled = true;
-    document.getElementById('sim-reset-btn').disabled = true;
-    document.getElementById('sim-status-label').textContent = 'Idle';
-    document.getElementById('sim-explanation-text').textContent = 'Select an option to simulate the flow.';
+        langSelect.value = initialLang;
+        codeArea.value = initialCode;
 
-    renderSimulationSchema();
+        // Change template listener
+        langSelect.onchange = () => {
+            const selectedLang = langSelect.value;
+            const opts = q.options;
+            if (opts.templates && opts.templates[selectedLang]) {
+                codeArea.value = opts.templates[selectedLang];
+            }
+        };
 
-    if (previousAns) {
-        revealAnswerPanel(previousAns.answered, previousAns.correct);
-        document.getElementById('sim-play-pause-btn').disabled = false;
-        document.getElementById('sim-reset-btn').disabled = false;
-        startFlowSimulation(previousAns.answered);
+        // Render test cases list
+        const testList = document.getElementById('test-cases-list');
+        testList.innerHTML = '';
+        
+        const opts = q.options;
+        if (opts.test_cases) {
+            opts.test_cases.forEach((tc, idx) => {
+                const item = document.createElement('div');
+                item.style.padding = '8px 12px';
+                item.style.backgroundColor = 'rgba(255,255,255,0.02)';
+                item.style.borderRadius = '6px';
+                item.style.border = '1px solid var(--border-color)';
+                item.innerHTML = `
+                    <div style="font-weight: 500; font-size: 0.8rem; margin-bottom: 4px;">Test Case ${idx + 1}</div>
+                    <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--text-secondary);">Input: ${tc.input}</div>
+                    <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--text-secondary);">Expected: ${tc.output}</div>
+                `;
+                testList.appendChild(item);
+            });
+        }
+
+        // If solved, show console outputs
+        const codingLabel = document.getElementById('coding-status-label');
+        if (previousAns) {
+            codingLabel.textContent = previousAns.correct ? "Accepted" : "Rejected";
+            codingLabel.style.color = previousAns.correct ? "#57ffb4" : "#ff5757";
+        } else {
+            codingLabel.textContent = "Ready";
+            codingLabel.style.color = "var(--text-secondary)";
+        }
     } else {
-        document.getElementById('explanation-card').style.display = 'none';
+        document.getElementById('mc-options-container').style.display = 'block';
+        document.getElementById('coding-workspace-container').style.display = 'none';
+        document.getElementById('mc-simulation-card').style.display = 'block';
+        document.getElementById('coding-tests-panel').style.display = 'none';
+
+        state.selectedOption = null;
+        submitBtn.textContent = "Submit Architecture Selection";
+        submitBtn.disabled = true;
+
+        const optionsList = document.getElementById('options-list');
+        optionsList.innerHTML = '';
+
+        q.options.forEach(opt => {
+            const card = document.createElement('div');
+            card.className = 'option-card';
+            card.dataset.key = opt.key;
+
+            card.innerHTML = `
+                <div class="option-letter">${opt.key}</div>
+                <div class="option-text">${opt.text}</div>
+            `;
+
+            if (previousAns) {
+                if (opt.key === q.correct_answer) {
+                    card.classList.add('correct-answer-reveal');
+                } else if (previousAns.answered === opt.key) {
+                    card.classList.add('incorrect-answer-reveal');
+                }
+            } else {
+                card.addEventListener('click', () => selectOption(opt.key));
+            }
+
+            optionsList.appendChild(card);
+        });
+
+        document.getElementById('sim-play-pause-btn').disabled = true;
+        document.getElementById('sim-reset-btn').disabled = true;
+        document.getElementById('sim-status-label').textContent = 'Idle';
+        document.getElementById('sim-explanation-text').textContent = 'Select an option to simulate the flow.';
+
+        renderSimulationSchema();
+
+        if (previousAns) {
+            revealAnswerPanel(previousAns.answered, previousAns.correct);
+            document.getElementById('sim-play-pause-btn').disabled = false;
+            document.getElementById('sim-reset-btn').disabled = false;
+            startFlowSimulation(previousAns.answered);
+        } else {
+            document.getElementById('explanation-card').style.display = 'none';
+        }
     }
 }
 
@@ -812,60 +897,175 @@ function selectOption(key) {
 }
 
 async function submitAnswer() {
-    if (!state.selectedOption || !state.activeQuest) return;
-
     const q = state.activeQuest;
+    if (!q) return;
+
     const topicId = state.activeTopic.id;
-    const isCorrect = state.selectedOption === q.correct_answer;
 
-    try {
-        // Save progress to database
-        const res = await apiFetch(`/api/quests/${topicId}/${q.id}/progress`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                answered: state.selectedOption,
-                correct: isCorrect
-            })
-        });
+    if (q.correct_answer === "CODING") {
+        const lang = document.getElementById('code-lang-select').value;
+        const code = document.getElementById('code-editor-area').value;
 
-        if (!res.ok) throw new Error("Failed to save progress on backend");
+        const submitBtn = document.getElementById('submit-answer-btn');
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Running Tests...`;
 
-        // Record locally for sidebar update
-        state.userProgress[q.id] = { answered: state.selectedOption, correct: isCorrect };
-        updateOverallProgress();
+        try {
+            // 1. Run local test suite in backend
+            const runRes = await apiFetch(`/api/quests/${topicId}/${q.id}/run`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ language: lang, code })
+            });
 
-        // Reveal styling
-        const cards = document.querySelectorAll('.option-card');
-        cards.forEach(c => {
-            c.classList.remove('selected');
-            const key = c.dataset.key;
-            if (key === q.correct_answer) {
-                c.classList.add('correct-answer-reveal');
-            } else if (key === state.selectedOption) {
-                c.classList.add('incorrect-answer-reveal');
+            if (!runRes.ok) {
+                const errData = await runRes.json();
+                throw new Error(errData.detail || "Execution failed");
             }
-            // Remove handlers
-            const newCard = c.cloneNode(true);
-            c.parentNode.replaceChild(newCard, c);
-        });
 
-        revealAnswerPanel(state.selectedOption, isCorrect);
+            const result = await runRes.json();
 
-        document.getElementById('submit-answer-btn').disabled = true;
-        document.getElementById('sim-play-pause-btn').disabled = false;
-        document.getElementById('sim-reset-btn').disabled = false;
+            // Show Console Output Box
+            const consoleBox = document.getElementById('console-output-box');
+            const consoleText = document.getElementById('console-output-text');
+            const consoleBadge = document.getElementById('console-status-badge');
 
-        startFlowSimulation(state.selectedOption);
+            consoleBox.style.display = 'block';
+            consoleText.textContent = result.error || JSON.stringify(result.details, null, 2);
 
-        // Open rating overlay modal after brief delay (letting animation start first)
-        setTimeout(() => {
-            openRatingModal();
-        }, 1200);
+            if (result.passed) {
+                consoleBadge.textContent = "Passed";
+                consoleBadge.style.backgroundColor = "rgba(87, 255, 180, 0.15)";
+                consoleBadge.style.color = "#57ffb4";
+            } else {
+                consoleBadge.textContent = "Failed";
+                consoleBadge.style.backgroundColor = "rgba(255, 87, 87, 0.15)";
+                consoleBadge.style.color = "#ff5757";
+            }
 
-    } catch (e) {
-        console.error(e);
-        alert(e.message);
+            // Render execution outcomes in the test-cases-list
+            const testList = document.getElementById('test-cases-list');
+            testList.innerHTML = '';
+            
+            const details = result.details || [];
+            const opts = q.options;
+            
+            if (opts.test_cases) {
+                opts.test_cases.forEach((tc, idx) => {
+                    const outcome = details[idx] || { status: "not_run", actual: "N/A" };
+                    const item = document.createElement('div');
+                    item.style.padding = '8px 12px';
+                    item.style.backgroundColor = outcome.status === 'passed' ? 'rgba(87,255,180,0.04)' : 'rgba(255,87,87,0.04)';
+                    item.style.borderRadius = '6px';
+                    item.style.border = '1px solid';
+                    item.style.borderColor = outcome.status === 'passed' ? 'rgba(87,255,180,0.1)' : 'rgba(255,87,87,0.1)';
+
+                    const icon = outcome.status === 'passed' 
+                        ? '<i class="fas fa-check-circle" style="color: #57ffb4; margin-right: 6px;"></i>' 
+                        : '<i class="fas fa-times-circle" style="color: #ff5757; margin-right: 6px;"></i>';
+
+                    item.innerHTML = `
+                        <div style="font-weight: 500; font-size: 0.8rem; margin-bottom: 4px; display: flex; align-items: center;">
+                            ${icon} Test Case ${idx + 1} (${outcome.status.toUpperCase()})
+                        </div>
+                        <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--text-secondary);">Input: ${tc.input}</div>
+                        <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--text-secondary);">Expected: ${tc.output}</div>
+                        <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: ${outcome.status === 'passed' ? '#57ffb4' : '#ff5757'};">Actual: ${outcome.actual}</div>
+                    `;
+                    testList.appendChild(item);
+                });
+            }
+
+            // Update Side Title Status
+            document.getElementById('coding-status-label').textContent = result.passed ? "Accepted" : "Rejected";
+            document.getElementById('coding-status-label').style.color = result.passed ? "#57ffb4" : "#ff5757";
+
+            // Save coding progress
+            const progressData = {
+                language: lang,
+                code: code
+            };
+
+            const progressRes = await apiFetch(`/api/quests/${topicId}/${q.id}/progress`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    answered: JSON.stringify(progressData),
+                    correct: result.passed
+                })
+            });
+
+            if (!progressRes.ok) throw new Error("Failed to save progress");
+
+            // Record locally
+            state.userProgress[q.id] = { answered: JSON.stringify(progressData), correct: result.passed };
+            updateOverallProgress();
+
+            if (result.passed) {
+                alert("All tests passed! Solution accepted!");
+                revealAnswerPanel("A", true);
+                setTimeout(() => {
+                    openRatingModal();
+                }, 1200);
+            } else {
+                alert("Solution rejected. Check the test suite outcome logs.");
+            }
+
+        } catch (e) {
+            console.error(e);
+            alert("Execution error: " + e.message);
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = "Run & Submit Code";
+        }
+    } else {
+        if (!state.selectedOption) return;
+        const isCorrect = state.selectedOption === q.correct_answer;
+
+        try {
+            const res = await apiFetch(`/api/quests/${topicId}/${q.id}/progress`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    answered: state.selectedOption,
+                    correct: isCorrect
+                })
+            });
+
+            if (!res.ok) throw new Error("Failed to save progress on backend");
+
+            state.userProgress[q.id] = { answered: state.selectedOption, correct: isCorrect };
+            updateOverallProgress();
+
+            const cards = document.querySelectorAll('.option-card');
+            cards.forEach(c => {
+                c.classList.remove('selected');
+                const key = c.dataset.key;
+                if (key === q.correct_answer) {
+                    c.classList.add('correct-answer-reveal');
+                } else if (key === state.selectedOption) {
+                    c.classList.add('incorrect-answer-reveal');
+                }
+                const newCard = c.cloneNode(true);
+                c.parentNode.replaceChild(newCard, c);
+            });
+
+            revealAnswerPanel(state.selectedOption, isCorrect);
+
+            submitBtn.disabled = true;
+            document.getElementById('sim-play-pause-btn').disabled = false;
+            document.getElementById('sim-reset-btn').disabled = false;
+
+            startFlowSimulation(state.selectedOption);
+
+            setTimeout(() => {
+                openRatingModal();
+            }, 1200);
+
+        } catch (e) {
+            console.error(e);
+            alert(e.message);
+        }
     }
 }
 
