@@ -756,7 +756,7 @@ function showQuestWorkspace() {
         document.getElementById('mc-simulation-card').style.display = 'none';
         document.getElementById('coding-tests-panel').style.display = 'block';
 
-        submitBtn.textContent = "Run & Submit Code";
+        submitBtn.textContent = "Submit";
         submitBtn.disabled = false;
 
         // Populate templates and values
@@ -833,7 +833,7 @@ function showQuestWorkspace() {
         document.getElementById('coding-tests-panel').style.display = 'none';
 
         state.selectedOption = null;
-        submitBtn.textContent = "Submit Architecture Selection";
+        submitBtn.textContent = "Submit";
         submitBtn.disabled = true;
 
         const optionsList = document.getElementById('options-list');
@@ -901,14 +901,14 @@ async function submitAnswer() {
     if (!q) return;
 
     const topicId = state.activeTopic.id;
+    const submitBtn = document.getElementById('submit-answer-btn');
 
     if (q.correct_answer === "CODING") {
         const lang = document.getElementById('code-lang-select').value;
         const code = document.getElementById('code-editor-area').value;
 
-        const submitBtn = document.getElementById('submit-answer-btn');
         submitBtn.disabled = true;
-        submitBtn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Running Tests...`;
+        submitBtn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Running...`;
 
         try {
             // 1. Run local test suite in backend
@@ -1016,7 +1016,7 @@ async function submitAnswer() {
             alert("Execution error: " + e.message);
         } finally {
             submitBtn.disabled = false;
-            submitBtn.textContent = "Run & Submit Code";
+            submitBtn.textContent = "Submit";
         }
     } else {
         if (!state.selectedOption) return;
